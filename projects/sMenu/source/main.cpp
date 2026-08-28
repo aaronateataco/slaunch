@@ -46,6 +46,9 @@ extern "C" {
 static Menu *g_UI            = nullptr;
 static bool  g_NeedAppReload = true;
 static bool  g_Running       = true;
+// Set in __appInit once hidsysActivateHomeButton actually succeeds; see its
+// own comment there. The main loop's HOME poll is skipped entirely otherwise.
+static bool  g_HomeAvailable = false;
 
 // Background app loader (so HOME shows the menu immediately, then fills in).
 static Thread                       g_LoadThread = {};
@@ -362,10 +365,20 @@ extern "C" void __appInit() {
     // widgets just show nothing, the menu is unaffected.
     nifmInitialize(NifmServiceType_User);
     socketInitializeDefault();                   BootLog("appinit: net");
+    // HOME button as an in-menu shortcut (Deck: open the side menu; every
+    // other mode: resume the suspended game). Best-effort like the network
+    // init above: this is a system-level hook nothing else here needs, so a
+    // failure just means the shortcut never fires - g_HomeAvailable stays
+    // false and the main loop's poll is skipped entirely - rather than any
+    // part of the menu itself being at risk.
+    g_HomeAvailable = R_SUCCEEDED(hidsysInitialize()) &&
+                      R_SUCCEEDED(hidsysActivateHomeButton());
+    BootLog("appinit: hidsys home button %s", g_HomeAvailable ? "OK" : "unavailable");
     __nx_win_init();                             BootLog("appinit: win (done)");
 }
 extern "C" void __appExit() {
     __nx_win_exit();
+    hidsysExit();
     socketExit(); nifmExit();
     plExit(); psmExit(); nsExit(); accountExit(); hidExit(); appletExit();
     setExit(); setsysExit(); timeExit();
@@ -654,6 +667,22 @@ int main() {
                 run(ui.OnTouch(2, last_tx, last_ty, tlaunch), tlaunch);
                 was_touching = false;
             }
+        }
+
+        // HOME button: edge-detected the same way the touch block above
+        // tracks was_touching, since hidGetHomeButtonStates hands back a
+        // sampled *state* (held or not) rather than a press event - firing on
+        // every sample the bit is set would repeat it for as long as the
+        // button stays down, not once per press.
+        if (g_HomeAvailable) {
+            static bool was_home_down = false;
+            HidHomeButtonState hs = {0};
+            const bool home_down = hidGetHomeButtonStates(&hs, 1) > 0 && (hs.buttons & 1) != 0;
+            if (home_down && !was_home_down) {
+                u64 hlaunch = 0;
+                run(ui.OnHomeButton(hlaunch), hlaunch);
+            }
+            was_home_down = home_down;
         }
 
         // Poll the current directional state from dpad + hat + left stick.

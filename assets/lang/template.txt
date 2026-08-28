@@ -12,8 +12,9 @@
 # language selects which file is loaded.
 #
 # This file is generated from the menu sources; every string the menu can show
-# is listed. Keep the spacing inside button hints ("A: Select    X: Options"),
-# it is what lines them up on screen.
+# is listed. Button hints ("A: Select", "B: Back", ...) are drawn as real
+# button icons now, not text - what you're translating for those is just the
+# action word (e.g. "Select" on its own, under "button hint icons" below).
 #
 # Non-Latin scripts need a font that has those glyphs. The console's own font
 # covers Japanese, Chinese and Korean and the menu picks it up automatically
@@ -164,13 +165,9 @@ Order saved=Order saved
 Removed from menu=Removed from menu
 Hidden=Hidden
 Shown=Shown
-Up/Down: Select   B: Back=Up/Down: Select   B: Back
 The suspended game will be closed.=The suspended game will be closed.
 Turn the console off?=Turn the console off?
-Up/Down: Select   A: Confirm   B: Back=Up/Down: Select   A: Confirm   B: Back
 Reboot to=Reboot to
-B: Back=B: Back
-Up/Down: Select   A: Reboot into it   B: Back=Up/Down: Select   A: Reboot into it   B: Back
 Let's play=Let's play
 Picking something...=Picking something...
 Version=Version
@@ -178,13 +175,10 @@ update available:=update available:
 up to date=up to date
 update check off=update check off
 What's new=What's new
-Up/Down: Scroll   B: Back=Up/Down: Scroll   B: Back
 Theme applied=Theme applied
 Theme saved=Theme saved
 Theme deleted=Theme deleted
 Font applied=Font applied
-A: Get started=A: Get started
-Up/Down: Choose    A: Next    B: Back=Up/Down: Choose    A: Next    B: Back
 Choose a layout=Choose a layout
 A simple scrolling text list=A simple scrolling text list
 A cover carousel (EmulationStation)=A cover carousel (EmulationStation)
@@ -197,38 +191,22 @@ Options on any entry: favourite, rename, move=Options on any entry: favourite, r
 Fonts, colours, background music, widgets=Fonts, colours, background music, widgets
 Browse .nro files and pin them to this menu=Browse .nro files and pin them to this menu
 Suspends your game and brings this back=Suspends your game and brings this back
-A: Next    B: Back=A: Next    B: Back
 You're all set=You're all set
 Enjoy sLaunch.=Enjoy sLaunch.
 Check for updates on startup=Check for updates on startup
-Left/Right: Change    A: Finish    B: Back=Left/Right: Change    A: Finish    B: Back
 +: Power=+: Power
-A: Select    X: Options=A: Select    X: Options
-A: Launch    X: Options    Left/Right: Browse=A: Launch    X: Options    Left/Right: Browse
 sort=sort
-A: Launch    X: Options=A: Launch    X: Options
-A: Select    X: Options    L/R: Jump    +: Power=A: Select    X: Options    L/R: Jump    +: Power
-Up/Down: Select   A: Open   Left/Right: Change   B: Back=Up/Down: Select   A: Open   Left/Right: Change   B: Back
 Enabled=Enabled
 Track=Track
 Volume=Volume
 Shuffle=Shuffle
 Put mp3/ogg files in sdmc:/slaunch/music=Put mp3/ogg files in sdmc:/slaunch/music
-Up/Down: Select   A/Left/Right: Change   B: Back=Up/Down: Select   A/Left/Right: Change   B: Back
 Scanning homebrew...=Scanning homebrew...
-A: Fullscreen    B: Back    Y: System album=A: Fullscreen    B: Back    Y: System album
-A: Windowed    B: Back    Y: System album=A: Windowed    B: Back    Y: System album
-B: Back    Y: System album=B: Back    Y: System album
 pinned=pinned
 Drop .lua widgets in sdmc:/slaunch/widgets/=Drop .lua widgets in sdmc:/slaunch/widgets/
-Left/Right: On/Off   A: Configure   B: Back=Left/Right: On/Off   A: Configure   B: Back
 This widget has no options=This widget has no options
 (not set)=(not set)
-A: Edit/Toggle   Left/Right: Toggle   B: Back=A: Edit/Toggle   Left/Right: Toggle   B: Back
 + New custom theme=+ New custom theme
-A: Create new theme    B: Back=A: Create new theme    B: Back
-A: Apply    Y: Edit    B: Back=A: Apply    Y: Edit    B: Back
-A: Apply    B: Back=A: Apply    B: Back
 Background=Background
 Photo=Photo
 Dim=Dim
@@ -257,21 +235,9 @@ Delete theme=Delete theme
 Ribbon=Ribbon
 Gradient=Gradient
 (none)=(none)
-Up/Down: Row    Left/Right: Change background type    B: Back=Up/Down: Row    Left/Right: Change background type    B: Back
-Up/Down: Row    Left/Right: Choose photo overlay    B: Back=Up/Down: Row    Left/Right: Choose photo overlay    B: Back
-Up/Down: Row    Left/Right/A: Toggle effect    Left/Right: Adjust value    B: Back=Up/Down: Row    Left/Right/A: Toggle effect    Left/Right: Adjust value    B: Back
-Up/Down: Row    Left/Right: Adjust video fps    B: Back=Up/Down: Row    Left/Right: Adjust video fps    B: Back
-Up/Down: Row    Left/Right: Adjust value    B: Back=Up/Down: Row    Left/Right: Adjust value    B: Back
-Up/Down: Row    A: Save & apply    B: Back=Up/Down: Row    A: Save & apply    B: Back
-Up/Down: Row    A: Rename    B: Back=Up/Down: Row    A: Rename    B: Back
-Up/Down: Row    A: Delete this theme    B: Back=Up/Down: Row    A: Delete this theme    B: Back
-Up/Down: Row    A: Edit color    B: Back=Up/Down: Row    A: Edit color    B: Back
 Color=Color
 applied=applied
-Up/Down: Preview    A: Apply    B: Back=Up/Down: Preview    A: Apply    B: Back
 (empty)=(empty)
-A: Type   X: Shift   Y: Backspace   +: Done   B: Cancel=A: Type   X: Shift   Y: Backspace   +: Done   B: Cancel
-Up/Down: Choose    A: Confirm    B: Cancel=Up/Down: Choose    A: Confirm    B: Cancel
 
 # --- v1.0.0 ---
 Key cleared=Key cleared
@@ -319,11 +285,67 @@ Showcase=Showcase
 Spiral=Spiral
 Set=Set
 Not set=Not set
-D-pad: Choose    A: Use this    B: Cancel=D-pad: Choose    A: Use this    B: Cancel
-Up/Down: Select    A: Change    B: Back=Up/Down: Select    A: Change    B: Back
-Up/Down: Select   A: Open   B: Back=Up/Down: Select   A: Open   B: Back
-A: Open    Y: Play/pause    X: Options=A: Open    Y: Play/pause    X: Options
-Left/Right: Adjust    A: Select    B: Back=Left/Right: Adjust    A: Select    B: Back
-A: Launch    X: Options    -: Menu    R-stick: Look/Turn=A: Launch    X: Options    -: Menu    R-stick: Look/Turn
 Debug snapshot saved=Debug snapshot saved
 Reset=Reset
+
+# --- v1.2.0 (Deck layout) ---
+Deck=Deck
+Steam Deck: hero, covers and news=Steam Deck: hero, covers and news
+Nintendo=Nintendo
+Library=Library
+Menu=Menu
+All games=All games
+Favourites=Favourites
+Recent=Recent
+Nothing here=Nothing here
+No news=No news
+No widgets enabled=No widgets enabled
+Loading...=Loading...
+Played=Played
+Never played=Never played
+
+# --- button hint icons (A/B/X/Y/L/R/+/-/D-pad/stick prompts) ---
+Adjust=Adjust
+Adjust value=Adjust value
+Adjust video fps=Adjust video fps
+Apply=Apply
+Backspace=Backspace
+Browse=Browse
+Change=Change
+Change background type=Change background type
+Choose=Choose
+Choose photo overlay=Choose photo overlay
+Close=Close
+Configure=Configure
+Confirm=Confirm
+Create new theme=Create new theme
+Delete this theme=Delete this theme
+Done=Done
+Edit=Edit
+Edit color=Edit color
+Edit/Toggle=Edit/Toggle
+Finish=Finish
+Fullscreen=Fullscreen
+Get started=Get started
+Jump=Jump
+Launch=Launch
+Look/Turn=Look/Turn
+Next=Next
+On/Off=On/Off
+Open=Open
+Options=Options
+Play/pause=Play/pause
+Preview=Preview
+Reboot into it=Reboot into it
+Row=Row
+Save & apply=Save & apply
+Scroll=Scroll
+Select=Select
+Shift=Shift
+System album=System album
+Tab=Tab
+Toggle=Toggle
+Toggle effect=Toggle effect
+Type=Type
+Use this=Use this
+Windowed=Windowed

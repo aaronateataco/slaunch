@@ -26,6 +26,15 @@ BUILD     := build
 # daemon over applet storages, which has no desktop equivalent.
 MENU_SRCS := \
 	$(MENU_DIR)/source/sl/menu/ui/Menu.cpp \
+	$(MENU_DIR)/source/sl/menu/ui/Menu_Touch.cpp \
+	$(MENU_DIR)/source/sl/menu/ui/Menu_List.cpp \
+	$(MENU_DIR)/source/sl/menu/ui/Menu_Grid.cpp \
+	$(MENU_DIR)/source/sl/menu/ui/Menu_Cover.cpp \
+	$(MENU_DIR)/source/sl/menu/ui/Menu_Shelf.cpp \
+	$(MENU_DIR)/source/sl/menu/ui/Menu_Xmb.cpp \
+	$(MENU_DIR)/source/sl/menu/ui/Menu_Flow.cpp \
+	$(MENU_DIR)/source/sl/menu/ui/Menu_Deck.cpp \
+	$(MENU_DIR)/source/sl/menu/ui/Menu_Screens.cpp \
 	$(MENU_DIR)/source/sl/menu/ui/Theme.cpp \
 	$(MENU_DIR)/source/sl/menu/ui/Locale.cpp \
 	$(MENU_DIR)/source/sl/menu/gfx/Gfx.cpp \
@@ -34,6 +43,7 @@ MENU_SRCS := \
 	$(MENU_DIR)/source/sl/menu/audio/Sound.cpp \
 	$(MENU_DIR)/source/sl/menu/hb/Homebrew.cpp \
 	$(MENU_DIR)/source/sl/menu/net/Http.cpp \
+	$(MENU_DIR)/source/sl/menu/news/News.cpp \
 	$(MENU_DIR)/source/sl/menu/play/PlayStats.cpp \
 	$(MENU_DIR)/source/sl/menu/widgets/Widgets.cpp \
 	$(MENU_DIR)/source/sl/menu/dbg/Debug.cpp

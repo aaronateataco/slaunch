@@ -53,11 +53,24 @@ namespace sl::menu::gfx {
         // source (used for grid/line app icons). Falls back to the full image if
         // a render target can't be made.
         SDL_Texture *LoadImageScaled(const char *path, int w, int h);
+        // Same job, scale-to-cover instead of LoadImageScaled's stretch-to-fit:
+        // the larger of the two axis ratios is used, so the target is filled
+        // with no border, and whichever axis overflows is centre-cropped - a
+        // source that isn't already w:h comes out cropped, not squashed. biasY
+        // (0=top, 0.5=centre, 1=bottom) shifts a vertical crop off centre; it
+        // has no effect on an axis that isn't being cropped at all.
+        SDL_Texture *LoadImageCropped(const char *path, int w, int h, float biasY = 0.5f);
         void         FreeImage(SDL_Texture *tex);
         void         DrawCover(SDL_Texture *tex, Uint8 alpha = 255); // fullscreen cover-fit
         // Blit a texture into the dst rect (scaled to fit exactly; app icons are
         // square so this preserves them). alpha modulates the whole image.
         void         DrawImage(SDL_Texture *tex, int x, int y, int w, int h, Uint8 alpha = 255);
+        // Same, but recolours the texture first - for a white-glyph-on-alpha
+        // icon (LoadGlyph's output) that has to take the theme's colour, the
+        // same way Text() tints a cached glyph rather than shipping one PNG
+        // per possible colour.
+        void         DrawImageTinted(SDL_Texture *tex, int x, int y, int w, int h,
+                                     SDL_Color c, Uint8 alpha = 255);
 
         // ---- 3D quads (coverflow) -----------------------------------------
         // Camera sits at the origin looking down +z with y up; a quad is given

@@ -9,10 +9,12 @@
 #include <sl/menu/hb/Homebrew.hpp>
 #include <sl/menu/play/PlayStats.hpp>
 #include <sl/menu/widgets/Widgets.hpp>
+#include <sl/menu/news/News.hpp>
 #include <sl/menu/dbg/Debug.hpp>
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <initializer_list>
 #include <atomic>
 
 // SDL2 menu for sLaunch.
@@ -29,6 +31,9 @@ namespace sl::menu::ui {
     // re-point a user's existing hide list at the wrong entries.
     enum class ItemKind {
         Game, Theming, Themes, Fonts, Controllers, Album, UserPage,
+        // Settings is retired - it opened the NetConnect applet, which is what
+        // the Network entry does properly - but the value stays where it is:
+        // the hide list is written by number, and two icon lookups still name it.
         WebBrowser, MiiEdit, HomebrewMenu, Homebrew, Settings, Power,
         RandomGame,
         MusicPlayer,   // opens the menu-music screen; its own XMB category
@@ -49,13 +54,24 @@ namespace sl::menu::ui {
     // Horizontal alignment of the main list text.
     enum class TextAlign { Left, Center, Right };
 
+    // One segment of a button-prompt hint bar: one to three button icons
+    // (for combos like "L/R" or "A/Left/Right"), drawn side by side, then a
+    // translated label. `icons` are stems under sdmc:/slaunch/icons/buttons/
+    // ("a", "b", "l", "r", "up", "down", "left", "right", "plus", "minus",
+    // "dpad", "rstick"); `label` is a T() key, same as any other UI string.
+    struct HintSeg { std::initializer_list<const char*> icons; const char *label; };
+
     // Main-screen layout. List is the original text carousel; Line is a
     // horizontal cover carousel (EmulationStation style); Grid is a page of icon
     // tiles; Cover is a fullscreen single-cover pager; Shelf is an Xbox-360-style
     // row of uniform covers with a highlighted selection card; XMB mimics the
     // PSP/PS3 cross-media bar with category icons across the top and vertical
     // sub-items below. Line, Grid, Cover, and Shelf render the cached app icons.
-    enum class UiMode { List, Line, Grid, Cover, Shelf, XMB, Flow, Count };
+    // Deck is the SteamOS gamepad layout: one big hero, a row of covers beside
+    // it, and a row of news or widget cards under both, with the whole library
+    // one button away. Appended like every mode before it - the active one is
+    // persisted by number.
+    enum class UiMode { List, Line, Grid, Cover, Shelf, XMB, Flow, Deck, Count };
 
     struct MenuItem {
         ItemKind    kind;
@@ -133,6 +149,14 @@ namespace sl::menu::ui {
         // LaunchApp) the same way OnButton does.
         Action OnTouch(int phase, int x, int y, u64 &out_app_id);
 
+        // The physical HOME button (main.cpp polls hidsys for it and calls
+        // this on a fresh press; see its own comment there for why this is
+        // separate from OnButton rather than one more Btn value). Deck mode:
+        // opens the side menu, same as Minus. Every other mode: resumes the
+        // suspended game, if there is one - a quick way back into it that
+        // doesn't care what screen is currently up. Does nothing otherwise.
+        Action OnHomeButton(u64 &out_app_id);
+
         // Draw the current frame.
         void Render();
 
@@ -176,7 +200,10 @@ namespace sl::menu::ui {
         enum class Screen { Oobe, Welcome, Main, Theming, Themes, ThemeEditor, ColorPicker,
                             Fonts, Widgets, WidgetOptions, Keyboard, Music, Homebrew, About,
                             SysEntries, Power, Payloads, Album, FlowMenu, FlowSettings,
-                            Network, CoverPicker };
+                            Network, CoverPicker,
+                            // Deck: its side menu, the full-library grid, and the
+                            // reader a news card opens into.
+                            DeckMenu, DeckLibrary, DeckNews };
         enum class Dialog { None, ConfirmCloseForLaunch, ConfirmCloseGame, ConfirmPower };
 
         void RebuildItems();
@@ -187,8 +214,16 @@ namespace sl::menu::ui {
         // rather than the ordinary click; cleared before every dispatch.
         bool   m_sfx_confirm = false;
 
+        // The per-screen routing OnButton and OnTouch both funnel through, so
+        // a tap gets the same PlayButtonSfx() cue a button press does. See the
+        // definition for why this is split out of OnButton.
+        Action DispatchButton(Btn b, u64 &out_app_id);
+
         Action OnButtonOobe(Btn b);
         Action OnButtonMain(Btn b, u64 &out_app_id);
+        // What an A press on m_items[m_cursor] does; also called directly by
+        // DeckMenu/FlowMenu for their own selection. See its own definition.
+        Action ActivateSelected(u64 &out_app_id);
         Action OnButtonOptions(Btn b, u64 &out_app_id);
         Action OnButtonTheming(Btn b);
         Action OnButtonAbout(Btn b);
@@ -478,8 +513,14 @@ namespace sl::menu::ui {
         // already-localized title, since its two callers get theirs from
         // different places.
         void DrawXmbHeader(const char *title);
+        // "Downloading..." only - the one hint that isn't a button prompt.
+        // Everything else goes through the icon overload below.
         void DrawHint(const char *hint);
-        void DrawStatusHint(const char *hint); // fresh status line (if any) + hint
+        void DrawHint(std::initializer_list<HintSeg> segs);
+        // Tappable "go back" corner, drawn on every non-Main screen; see the
+        // definition and the kBackTap* constants for why it exists.
+        void DrawBackTap();
+        void DrawStatusHint(std::initializer_list<HintSeg> segs); // fresh status line (if any) + hint
         // Shared main-menu-style carousel used by the sub-screens too. Each row
         // is a label plus an optional right-hand value string.
         void DrawCarousel(const std::vector<std::string> &labels,
@@ -546,6 +587,11 @@ namespace sl::menu::ui {
         // title with no cover costs one failed open rather than one per frame.
         std::unordered_map<u64, SDL_Texture *> m_covers;
         SDL_Texture *FlowCover(const MenuItem &it);
+        // Deck's hero tile, keyed and cached the same way (a null entry for a
+        // miss included) but a different file and a different crop - see
+        // HeroArt's own definition, Menu_Deck.cpp.
+        std::unordered_map<u64, SDL_Texture *> m_hero_art;
+        SDL_Texture *HeroArt(const MenuItem &it);
         int m_cover_budget  = 6;  // cached covers to upload this frame
         // Full decodes are in a separate, much smaller budget. A cache hit is a
         // read; a miss is a 600x900 PNG inflate. Sharing one budget meant that
@@ -607,19 +653,26 @@ namespace sl::menu::ui {
         std::string m_cover_name;       // its name, for the search
         bool        m_cover_ok   = false;
         bool        m_shots_ok   = false;   // screenshots landed this fetch
+        bool        m_hero_ok    = false;   // hero art landed this fetch
         // Titles already attempted this session, so a miss is not retried on
         // every cursor move.
         std::unordered_map<u64, bool> m_cover_tried;
 
         // Real screenshots come from Steam's store API, which needs no key at
         // all: search the name for an appid, then ask for that app's
-        // screenshots. SteamGridDB has none of its own - grids, heroes, logos
-        // and icons is its whole catalogue - so the panels on the back of a case
-        // were "heroes", which are wide key art rather than anything from the
-        // game.
+        // screenshots. SteamGridDB has none of its own past grids, heroes,
+        // logos and icons, so a screenshot is the only art that's actually
+        // *from* the game - which is what the back-of-case panels want, and
+        // why they take Steam's shots and nothing else; Nintendo's own titles,
+        // which Steam does not carry, simply have no panels rather than a
+        // misleading stand-in.
         //
-        // Steam does not carry Nintendo's own titles, so heroes remain the
-        // fallback and those keep the art they had.
+        // Deck's hero tile wants the opposite trade-off - it is the single
+        // biggest, most-looked-at thing on that screen, and SteamGridDB's
+        // heroes (wide key art, 1920x620) read as a banner where a gameplay
+        // screenshot reads as a random moment. Fetched and cached completely
+        // separately from the panels above (m_hero_ok / HeroArt, Menu_Deck.cpp),
+        // even though both ride the same cover-fetch worker.
         //
         // One failed request turns the source off for the rest of the session:
         // something unreachable rather than merely empty would otherwise cost
@@ -727,6 +780,11 @@ namespace sl::menu::ui {
         // Load (cached) the black/white icon for a non-game menu entry, or null.
         SDL_Texture *SystemIcon(ItemKind kind);
         void InvalidateSysIcons(); // clear the cached system icon textures
+        // Load (cached) one button-prompt glyph from sdmc:/slaunch/icons/buttons/,
+        // white-on-alpha so DrawHint can tint it to the theme like any other
+        // hint text. Null (cached) on a missing file - a hint bar with a
+        // dropped icon still fits its space, just without the glyph.
+        SDL_Texture *HintIcon(const char *name);
         void DrawOptions();
         void DrawTheming();
         std::vector<int> ThemingRows() const;   // visible Theming rows
@@ -741,6 +799,64 @@ namespace sl::menu::ui {
         void DrawMusic();           // menu-music controls
         void DrawHomebrew();        // .nro browser
         void DrawAlbum();           // screenshot browser + fullscreen viewer
+        // ---- Deck layout ----------------------------------------------------
+        void DrawMainDeck();        // hero + cover row + card row
+        void DrawDeckMenu();        // side menu: everything that isn't a game
+        void DrawDeckMenuClosing(float u);       // tail of closing it; see definition
+        void DrawDeckMenuPanel(int xoff, Uint8 dimAlpha); // shared by both
+        void DrawDeckLibrary();     // the whole library, as a grid of covers
+        void DrawDeckNews();        // one story, read in place
+        // Navigation for the Deck home screen. True when the press was dealt
+        // with here; false lets OnButtonMain run its shared A/X/Plus handling,
+        // which is what launches the selected game.
+        bool DeckNav(Btn b, Action &out, u64 &out_app_id);
+        Action OnButtonDeckMenu(Btn b, u64 &out_app_id);
+        Action OnButtonDeckLibrary(Btn b, u64 &out_app_id);
+        Action OnButtonDeckNews(Btn b);
+        // Ask the feed for whatever the current tab needs. Cheap to call every
+        // frame: the feed drops requests it has already served.
+        void   DeckPollNews();
+        const std::vector<news::Item> &DeckCards() const;
+        // Card art, decoded once and cached by path.
+        SDL_Texture *DeckArt(const std::string &path);
+        void   DeckFreeArt();
+        // Word-wrapped text into a fixed width, at most max_lines lines with the
+        // last ellipsised. Returns the lines drawn, so a caller can advance.
+        int    DeckWrapText(const std::string &s, int x, int y, int w,
+                            gfx::FontSize fs, SDL_Color c, int max_lines);
+        int    EnabledWidgetCount();
+        // The home row: indices into m_items, most recently played first (that
+        // is the entry the wide tile is for).
+        void   DeckRow(std::vector<int> &out) const;
+        int    DeckSlotX(int slot) const;    // left edge of a slot, unscrolled
+        void   DeckSyncCursor();             // keep the selection on a real tile
+        // The library grid, filtered by the selected tab: indices into m_items.
+        void   DeckLibraryList(std::vector<int> &out) const;
+        int    DeckLibraryAt(int px, int py) const;   // library cell, or -1
+        int    DeckItemAt(int px, int py) const;      // hero/cover item, or -1
+        // Taps the home screen handles itself: the tab row and the cards. True
+        // when the tap was one of those, so the shared hit-test is not also run
+        // on it. Touch for the Deck screens proper is in OnTouch.
+        bool   DeckTap(int px, int py, u64 &out_app_id, Action &out);
+
+        news::Feed m_news;
+        int   m_deck_row  = 0;      // 0 covers, 1 tabs, 2 cards
+        int   m_deck_tab  = 0;      // 0 this game, 1 Nintendo, 2 widgets
+        int   m_deck_card = 0;
+        int   m_deck_menu_cursor = 0;
+        int   m_deck_lib_tab     = 0;
+        int   m_deck_lib_cursor  = 0;
+        float m_deck_lib_scroll  = 0.0f;
+        float m_deck_scroll      = 0.0f;   // eased cover-row position
+        int   m_deck_reading     = 0;      // card open in the reader
+        // Set while a screen was opened from the Deck side menu, so B comes back
+        // to it rather than dropping onto the home screen.
+        bool  m_from_deck_menu = false;
+        // Set while the home screen is being painted as the side menu's
+        // backdrop, so it leaves the hint line to the menu on top of it.
+        bool  m_deck_backdrop  = false;
+        std::unordered_map<std::string, SDL_Texture *> m_news_art;
+
         void DrawFlowMenu();        // Flow's Minus menu: everything that isn't a game
         void DrawFlowSettings();    // live tuning of the shelf layout
         Action OnButtonFlowSettings(Btn b);
@@ -783,6 +899,25 @@ namespace sl::menu::ui {
 
         Screen m_screen = Screen::Main;
         Dialog m_dialog = Dialog::None;
+
+        // Screen-transition fade: Render() compares m_screen against
+        // m_screen_seen every frame, and a mismatch (however m_screen got
+        // changed - there are ~70 call sites across every mode and submenu)
+        // stamps m_screen_trans_tick and starts the fade. One mechanism
+        // catches every screen change without any of those call sites having
+        // to know about it. 0 means no fade is running.
+        Screen m_screen_seen      = Screen::Main;
+        u64    m_screen_trans_tick = 0;
+        // DeckMenu has its own slide instead (DrawDeckMenu, reading
+        // m_screen_trans_tick itself) - set whenever it is either end of the
+        // transition, so the generic full-screen darken doesn't also play
+        // underneath the slide.
+        bool   m_suppress_screen_fade = false;
+        // Set when DeckMenu closes back to the Deck home screen (not when it
+        // opens another screen instead), so Render() can keep drawing the
+        // panel sliding back out over the now-current Main screen for one
+        // more short window, instead of it just vanishing.
+        u64    m_deck_menu_close_tick = 0;
 
         std::vector<AppEntry> m_apps;
         std::vector<MenuItem> m_items;
@@ -855,6 +990,7 @@ namespace sl::menu::ui {
         void StartResolvePins();   // background resolve of m_hb_pins (no-op if empty/running)
         void PollResolvePins();    // main thread: fold resolved names/icons into m_hb_pins
         std::unordered_map<int, SDL_Texture*> m_sys_icons; // Icons
+        std::unordered_map<std::string, SDL_Texture*> m_hint_icons; // button-prompt glyphs
         std::vector<std::pair<u64, std::string>> m_names; // app_id -> custom name
         int  m_theming_cursor = 0;
         bool m_jumped_to_suspended = false;

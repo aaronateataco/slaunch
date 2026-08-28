@@ -59,6 +59,10 @@ assets:
 	@cp -f assets/theming.png assets/controllers.png assets/album.png assets/user.png \
 	       assets/browser.png assets/mii.png assets/settings.png assets/power.png \
 	       assets/homebrewmenu.png assets/random.png SdOut/slaunch/icons/ 2>/dev/null || true
+	@# Button-prompt glyphs (Xelu pack, see assets/icons/buttons/ATTRIBUTION.md)
+	@# for every hint bar's A/B/X/Y/L/R/+/-/D-pad/stick icons.
+	@mkdir -p SdOut/slaunch/icons/buttons
+	@cp -f assets/icons/buttons/*.png SdOut/slaunch/icons/buttons/ 2>/dev/null || true
 	@# Bundled icon packs (Theming > Appearance > Icon pack). Each subfolder of
 	@# assets/icon_packs is one pack; only the PNGs ship, the source vectors and
 	@# attribution stay in the repo. Users can drop their own packs alongside.

@@ -469,6 +469,50 @@ namespace sl::menu::gfx {
         return tex;
     }
 
+    SDL_Texture *Gfx::LoadImageCropped(const char *path, int w, int h, float biasY) {
+        SDL_Surface *raw = IMG_Load(path);
+        if (!raw) return nullptr;
+
+        SDL_Surface *src = SDL_ConvertSurfaceFormat(raw, SDL_PIXELFORMAT_RGBA8888, 0);
+        SDL_FreeSurface(raw);
+        if (!src) return nullptr;
+
+        // Scale-to-cover: the bigger of the two ratios is what makes both axes
+        // reach at least w/h, so this - not the smaller one LoadImageScaled's
+        // stretch effectively applies per axis - is the one that leaves no
+        // border, only an overflow to crop.
+        const float sx = (float)w / (float)src->w;
+        const float sy = (float)h / (float)src->h;
+        const float scale = sx > sy ? sx : sy;
+
+        // The crop rect, in source pixels: exactly a w:h-shaped window, sized
+        // down from src by that scale. Whichever axis the scale came from is
+        // already full-size (cw == src->w or ch == src->h); the other is what
+        // actually gets cropped.
+        int cw = (int)(w / scale + 0.5f);
+        int ch = (int)(h / scale + 0.5f);
+        if (cw > src->w) cw = src->w;
+        if (ch > src->h) ch = src->h;
+        const int cx = (src->w - cw) / 2;               // horizontal crop stays centred
+        const int cy = (int)((float)(src->h - ch) * biasY);
+        SDL_Rect crop { cx, cy, cw, ch };
+
+        SDL_Surface *dst = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32,
+                                                          SDL_PIXELFORMAT_RGBA8888);
+        if (!dst) {   // out of memory: the uncropped source still beats nothing
+            SDL_Texture *tex = SDL_CreateTextureFromSurface(m_renderer, src);
+            SDL_FreeSurface(src);
+            return tex;
+        }
+
+        SDL_BlitScaled(src, &crop, dst, nullptr);
+        SDL_FreeSurface(src);
+
+        SDL_Texture *tex = SDL_CreateTextureFromSurface(m_renderer, dst);
+        SDL_FreeSurface(dst);
+        return tex;
+    }
+
     // Scanline-filled triangle. SDL2 has no filled-primitive call before
     // SDL_RenderGeometry, so the span between the two active edges is drawn as
     // a 1px rect per row. Only used for small shapes (the XMB selection wedge),
@@ -560,6 +604,22 @@ namespace sl::menu::gfx {
         SDL_SetTextureAlphaMod(tex, alpha);
         SDL_RenderCopy(m_renderer, tex, nullptr, &dst);
         SDL_SetTextureAlphaMod(tex, 255); // don't leak the mod to other blits
+    }
+
+    void Gfx::DrawImageTinted(SDL_Texture *tex, int x, int y, int w, int h,
+                              SDL_Color c, Uint8 alpha) {
+        if (!tex || w <= 0 || h <= 0) return;
+        SDL_Rect dst { x, y, w, h };
+        SDL_SetTextureColorMod(tex, c.r, c.g, c.b);
+        // c's own alpha (as Text() uses it) times the caller's fade multiplier,
+        // the same combination IconPlate already does for a theme colour and a
+        // row's fade alpha - so DrawImageTinted(tex, ..., t.dim) alone behaves
+        // exactly like Text(..., t.dim, ...), and a caller fading a whole panel
+        // down can still pass its own alpha on top without fighting t.dim's.
+        SDL_SetTextureAlphaMod(tex, (Uint8)((int)c.a * alpha / 255));
+        SDL_RenderCopy(m_renderer, tex, nullptr, &dst);
+        SDL_SetTextureColorMod(tex, 255, 255, 255);
+        SDL_SetTextureAlphaMod(tex, 255); // don't leak either mod to other blits
     }
 
     void Gfx::DrawCover(SDL_Texture *tex, Uint8 alpha) {

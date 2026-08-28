@@ -74,6 +74,29 @@ selectable under **Theming > Fonts** for reading names in other scripts.
 Lua widgets drawn on the home screen and draggable with touch. See
 [docs/WIDGETS.md](docs/WIDGETS.md).
 
+### Deck layout
+
+**Theming > UI mode > Deck** is the SteamOS gamepad layout. The game you last
+played gets a wide tile; the rest of the library follows it as upright tiles of
+the same height, and under both is a row of cards:
+
+| Tab | What it shows |
+|---|---|
+| What's new | Steam's news for the selected game, matched by name |
+| Nintendo | the front page of nintendo.com/us/whatsnew |
+| Widgets | your Lua widgets, one per card |
+
+`A` on a card opens the story in a reader, `Y` opens the whole library as a grid
+with tabs (all / favourites / recent / game card / homebrew), and `-` (or the
+**HOME** button) opens a side menu holding everything that is not a game -
+Theming, homebrew, Album, music, network, power.
+
+Both feeds are keyless and cached on the card (`slaunch/cache/news/`), so the
+menu opens on the last set of stories rather than waiting for the network -
+Nintendo is refetched after six hours, a game's Steam news after a day. Box art
+is the same SteamGridDB fetch Flow uses, so **Theming > SteamGridDB key** is
+worth setting for this layout too.
+
 ## Building
 
 Requires devkitPro (devkitA64 + libnx + the switch SDL2 stack) and a built
@@ -169,4 +192,6 @@ applet did, so prefer one the menu has no entry for.
   **[nx-hbloader](https://github.com/switchbrew/nx-hbloader)** (ISC).
 - The `Minimal` icon pack is by
   **[MeepCat55](https://github.com/meepcat55)**.
+- Button prompt icons are from **Xelu's Free Controller and Key Prompts**
+  (CC0) - see `assets/icons/buttons/ATTRIBUTION.md`.
 - Bundled fonts are SIL OFL / Apache licensed - see `assets/fonts/ATTRIBUTION.md`.
