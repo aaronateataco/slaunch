@@ -45,6 +45,12 @@ namespace sl::menu::ui {
             }
         }
 
+        // Point the config layer at whoever this is before the first file is
+        // read. main already did this - it needs settings before Menu exists -
+        // but Init may have resolved a different uid just above, and the sim
+        // comes in through here only.
+        cfg::SetUser(m_user);
+        cfg::NoteNickname(m_nickname);
         Phase("account");
 
         m_theme.Load();
@@ -453,7 +459,7 @@ namespace sl::menu::ui {
     }
     void Menu::LoadFavourites() {
         m_favourites.clear();
-        FILE *fp = fopen("sdmc:/slaunch/config/favourites.txt", "r");
+        FILE *fp = fopen(GetUserConfigPath("favourites.txt").c_str(), "r");
         if (!fp) return;
         char line[32];
         while (fgets(line, sizeof(line), fp)) {
@@ -463,9 +469,9 @@ namespace sl::menu::ui {
         fclose(fp);
     }
     void Menu::SaveFavourites() {
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen("sdmc:/slaunch/config/favourites.txt", "w");
+        EnsureUserConfigDir();
+        const std::string path = GetUserConfigPath("favourites.txt");
+        FILE *fp = fopen(path.c_str(), "w");
         if (!fp) return;
         for (u64 id : m_favourites) fprintf(fp, "%016llX\n", (unsigned long long)id);
         fclose(fp);
@@ -482,7 +488,7 @@ namespace sl::menu::ui {
     }
     void Menu::LoadHbFavourites() {
         m_hb_favs.clear();
-        FILE *fp = fopen("sdmc:/slaunch/config/hb_favourites.txt", "r");
+        FILE *fp = fopen(GetUserConfigPath("hb_favourites.txt").c_str(), "r");
         if (!fp) return;
         char line[FS_MAX_PATH + 2];
         while (fgets(line, sizeof(line), fp)) {
@@ -492,15 +498,15 @@ namespace sl::menu::ui {
         fclose(fp);
     }
     void Menu::SaveHbFavourites() {
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen("sdmc:/slaunch/config/hb_favourites.txt", "w");
+        EnsureUserConfigDir();
+        const std::string path = GetUserConfigPath("hb_favourites.txt");
+        FILE *fp = fopen(path.c_str(), "w");
         if (!fp) return;
         for (auto &p : m_hb_favs) fprintf(fp, "%s\n", p.c_str());
         fclose(fp);
     }
     void Menu::LoadSort() {
-        FILE *fp = fopen("sdmc:/slaunch/config/sort.txt", "r");
+        FILE *fp = fopen(GetUserConfigPath("sort.txt").c_str(), "r");
         if (!fp) return;
         int v = 0;
         if (fscanf(fp, "%d", &v) == 1 && v >= 0 && v < (int)SortMode::Count)
@@ -508,9 +514,9 @@ namespace sl::menu::ui {
         fclose(fp);
     }
     void Menu::SaveSort() {
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen("sdmc:/slaunch/config/sort.txt", "w");
+        EnsureUserConfigDir();
+        const std::string path = GetUserConfigPath("sort.txt");
+        FILE *fp = fopen(path.c_str(), "w");
         if (!fp) return;
         fprintf(fp, "%d\n", (int)m_sort);
         fclose(fp);
@@ -545,7 +551,7 @@ namespace sl::menu::ui {
     }
     void Menu::LoadOrder() {
         m_order.clear();
-        FILE *fp = fopen("sdmc:/slaunch/config/order.txt", "r");
+        FILE *fp = fopen(GetUserConfigPath("order.txt").c_str(), "r");
         if (!fp) return;
         char line[FS_MAX_PATH + 4];
         while (fgets(line, sizeof(line), fp)) {
@@ -555,9 +561,9 @@ namespace sl::menu::ui {
         fclose(fp);
     }
     void Menu::SaveOrder() {
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen("sdmc:/slaunch/config/order.txt", "w");
+        EnsureUserConfigDir();
+        const std::string path = GetUserConfigPath("order.txt");
+        FILE *fp = fopen(path.c_str(), "w");
         if (!fp) return;
         for (auto &k : m_order) fprintf(fp, "%s\n", k.c_str());
         fclose(fp);
@@ -613,7 +619,7 @@ namespace sl::menu::ui {
     void Menu::ClearSuspendedApp()          { m_suspended = 0; }
     // ---- Settings (text alignment) + custom names --------------------------
     void Menu::LoadSettings() {
-        FILE *fp = fopen("sdmc:/slaunch/config/settings.txt", "r");
+        FILE *fp = fopen(GetUserConfigPath("settings.txt").c_str(), "r");
         if (!fp) return;
         char line[64];
         while (fgets(line, sizeof(line), fp)) {
@@ -666,9 +672,9 @@ namespace sl::menu::ui {
         LocaleInit(m_lang);
     }
     void Menu::SaveSettings() {
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen("sdmc:/slaunch/config/settings.txt", "w");
+        EnsureUserConfigDir();
+        const std::string path = GetUserConfigPath("settings.txt");
+        FILE *fp = fopen(path.c_str(), "w");
         if (!fp) return;
         fprintf(fp, "align=%d\n", (int)m_align);
         fprintf(fp, "ui_mode=%d\n", (int)m_ui_mode);
@@ -687,7 +693,7 @@ namespace sl::menu::ui {
     }
     void Menu::LoadNames() {
         m_names.clear();
-        FILE *fp = fopen("sdmc:/slaunch/config/names.txt", "r");
+        FILE *fp = fopen(GetUserConfigPath("names.txt").c_str(), "r");
         if (!fp) return;
         char line[160];
         while (fgets(line, sizeof(line), fp)) {
@@ -701,9 +707,9 @@ namespace sl::menu::ui {
         fclose(fp);
     }
     void Menu::SaveNames() {
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen("sdmc:/slaunch/config/names.txt", "w");
+        EnsureUserConfigDir();
+        const std::string path = GetUserConfigPath("names.txt");
+        FILE *fp = fopen(path.c_str(), "w");
         if (!fp) return;
         for (auto &n : m_names)
             fprintf(fp, "%016llX=%s\n", (unsigned long long)n.first, n.second.c_str());
@@ -738,16 +744,53 @@ namespace sl::menu::ui {
         m_kb_upper = false;
         m_screen = Screen::Keyboard;
     }
+    // Switch the menu to another account: the settings go with the person, so
+    // this re-points the config layer and reads their files back in rather than
+    // leaving the previous account's values loaded (which the next save would
+    // then write into the new account's folder).
     void Menu::SetUser(AccountUid uid, const char *nickname) {
         m_user = uid;
         strncpy(m_nickname, nickname, 32);
         m_nickname[32] = '\0';
+
+        cfg::SetUser(m_user);
+        cfg::NoteNickname(m_nickname);
+
+        m_theme.Load();
+        m_theme_cursor = m_theme.CurrentIndex();
+        LoadFontConfig();
+        LoadFavourites();
+        LoadSort();
+        LoadOrder();
+        LoadTileCfg();
+        LoadHbPins();
+        LoadHbFavourites();
+        LoadSettings();
+        LoadSysEntries();
+        LoadNames();
+        LoadIconPackSetting();
+        LoadFlowConfig();
+        RebuildItems();
     }
     void Menu::SetStatus(const char *msg) {
         strncpy(m_status, T(msg), 127);   // localized; unknown messages pass through
         m_status[127] = '\0';
         m_status_tick = armGetSystemTick();
     }
+
+    // ---- Per-user config paths ---------------------------------------------
+    // Thin wrappers over sl::menu::cfg so the ten or so call sites in the menu
+    // read the same as they always did. The account is chosen once, in main,
+    // before the first config file is read; see UserCfg.hpp for what is per
+    // account and what stays with the console.
+    std::string Menu::GetUserConfigPath(const char *filename) const {
+        return cfg::Path(filename);
+    }
+
+    void Menu::EnsureUserConfigDir() const {
+        cfg::EnsureDir();
+    }
+
     // Ask the daemon to show the keyboard: write a request file, then flag the
     // applet to exit so qlaunch can display swkbd and hand the text back.
     // =========================================================================

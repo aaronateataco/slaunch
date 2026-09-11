@@ -1,4 +1,6 @@
 #include <sl/menu/ui/Theme.hpp>
+#include <sl/menu/cfg/UserCfg.hpp>
+#include <string>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -9,8 +11,10 @@ namespace sl::menu::ui {
 
     bool g_sd_ok = false;
 
-    static constexpr const char *ConfigDir = "sdmc:/slaunch/config";
-    static constexpr const char *ThemeCfg  = "sdmc:/slaunch/config/theme.cfg";
+    // The theme a person picked, and any they built themselves, belong to
+    // that person - so the file lives in their config folder. The wallpapers
+    // and theme packs it points at stay shared under sdmc:/slaunch.
+    static std::string ThemeCfgPath() { return cfg::Path("theme.cfg"); }
 
     static constexpr SDL_Color C(Uint8 r, Uint8 g, Uint8 b) { return SDL_Color{ r, g, b, 255 }; }
 
@@ -84,7 +88,7 @@ namespace sl::menu::ui {
         m_custom.clear();
         if (!g_sd_ok) return; // no SD -> defaults only
 
-        FILE *fp = fopen(ThemeCfg, "r");
+        FILE *fp = fopen(ThemeCfgPath().c_str(), "r");
         if (!fp) return;
 
         int want_current = m_current;
@@ -153,10 +157,9 @@ namespace sl::menu::ui {
 
     void ThemeManager::Save() const {
         if (!g_sd_ok) return;
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir(ConfigDir, 0777);
+        cfg::EnsureDir();
 
-        FILE *fp = fopen(ThemeCfg, "w");
+        FILE *fp = fopen(ThemeCfgPath().c_str(), "w");
         if (!fp) return;
         fprintf(fp, "current=%d\n", m_current);
         fprintf(fp, "custom_count=%d\n", (int)m_custom.size());

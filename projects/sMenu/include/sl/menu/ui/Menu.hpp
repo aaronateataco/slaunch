@@ -11,6 +11,7 @@
 #include <sl/menu/widgets/Widgets.hpp>
 #include <sl/menu/news/News.hpp>
 #include <sl/menu/dbg/Debug.hpp>
+#include <sl/menu/cfg/UserCfg.hpp>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -213,6 +214,12 @@ namespace sl::menu::ui {
         // Raised by a handler when its press deserves the confirmation cue
         // rather than the ordinary click; cleared before every dispatch.
         bool   m_sfx_confirm = false;
+
+        // A file under this account's config folder,
+        // "sdmc:/slaunch/config/users/<account id>/<filename>". See UserCfg.hpp
+        // for which settings are per account and which belong to the console.
+        std::string GetUserConfigPath(const char *filename) const;
+        void        EnsureUserConfigDir() const;
 
         // The per-screen routing OnButton and OnTouch both funnel through, so
         // a tap gets the same PlayButtonSfx() cue a button press does. See the
@@ -641,7 +648,7 @@ namespace sl::menu::ui {
         static void CoverFetchTrampoline(void *self);
         // What the fetcher is doing, so it is visible rather than silent. The
         // worker only ever writes it and the main thread only ever reads it.
-        enum class CoverState { Idle, NoKey, BadKey, Searching, NoMatch, NoArt, Failed, Got };
+        enum class CoverState { Idle, NoKey, BadKey, Searching, NoMatch, NoArt, Failed, Filtered, Got };
         std::atomic<int> m_cover_state { (int)CoverState::Idle };
         u64              m_cover_ok_count = 0;
         std::string m_sgdb_key;         // empty = feature off

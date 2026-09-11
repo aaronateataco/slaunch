@@ -1,4 +1,5 @@
 #include <sl/menu/widgets/Widgets.hpp>
+#include <sl/menu/cfg/UserCfg.hpp>
 #include <sl/menu/net/Http.hpp>
 #include <cstring>
 #include <cstdio>
@@ -12,8 +13,10 @@ namespace sl::menu::widgets {
 
     namespace {
         constexpr int  kWidgetW = 340;
-        constexpr const char *kPosPath = "sdmc:/slaunch/config/widget_pos.txt";
-        constexpr const char *kEnPath  = "sdmc:/slaunch/config/widget_enabled.txt";
+        // Where the floating widgets sit and which are on is a per-account
+        // choice; the scripts themselves are shared in sdmc:/slaunch/widgets.
+        inline std::string PosPath() { return cfg::Path("widget_pos.txt"); }
+        inline std::string EnPath()  { return cfg::Path("widget_enabled.txt"); }
     }
 
     void Widgets::Init() {
@@ -113,7 +116,7 @@ namespace sl::menu::widgets {
         for (size_t i = 0; i < m_widgets.size(); i++)
             m_box[i] = Box{ gfx::Gfx::Width - kWidgetW - 28, 96 + (int)i * 190, kWidgetW, 0 };
 
-        FILE *fp = fopen(kPosPath, "r");
+        FILE *fp = fopen(PosPath().c_str(), "r");
         if (!fp) return;
         char line[192];
         while (fgets(line, sizeof(line), fp)) {
@@ -139,7 +142,7 @@ namespace sl::menu::widgets {
     void Widgets::SavePositions() {
         mkdir("sdmc:/slaunch", 0777);
         mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen(kPosPath, "w");
+        FILE *fp = fopen(PosPath().c_str(), "w");
         if (!fp) return;
         for (size_t i = 0; i < m_widgets.size(); i++)
             fprintf(fp, "%s=%d,%d\n", m_widgets[i]->Name().c_str(), m_box[i].x, m_box[i].y);
@@ -159,7 +162,7 @@ namespace sl::menu::widgets {
         // in Theming > Widgets. Saved state in widget_enabled.txt overrides this.
         m_enabled.assign(m_widgets.size(), 0);   // default: off
         m_tiled.assign(m_widgets.size(), 0);
-        FILE *fp = fopen(kEnPath, "r");
+        FILE *fp = fopen(EnPath().c_str(), "r");
         if (!fp) return;
         char line[128];
         while (fgets(line, sizeof(line), fp)) {
@@ -176,7 +179,7 @@ namespace sl::menu::widgets {
     void Widgets::SaveEnabled() {
         mkdir("sdmc:/slaunch", 0777);
         mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen(kEnPath, "w");
+        FILE *fp = fopen(EnPath().c_str(), "w");
         if (!fp) return;
         for (size_t i = 0; i < m_widgets.size(); i++)
             fprintf(fp, "%s=%d\n", m_widgets[i]->Name().c_str(), m_enabled[i] ? 1 : 0);

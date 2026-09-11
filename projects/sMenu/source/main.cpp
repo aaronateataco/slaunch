@@ -58,7 +58,10 @@ static volatile bool                g_LoadDone = false;
 static volatile bool                g_LoadNoChange = false; // list unchanged -> keep cache
 static bool                         g_LoadRunning = false;
 
-static constexpr const char *SetupMarker = "sdmc:/slaunch/config/setup_done";
+// First-run setup is per account: it picks a language, a theme and an icon
+// pack, and those are the new account's to choose. The marker therefore lives
+// in the account's own config folder (see UserCfg.hpp).
+static std::string SetupMarkerPath() { return menu::cfg::Path("setup_done"); }
 // Dropped while anti-aliasing is being brought up, cleared once a frame lands.
 static constexpr const char *AaMarker = "sdmc:/slaunch/config/aa_pending";
 
@@ -87,8 +90,8 @@ static void BootLog(const char *fmt, ...) {
 // setting still asks for it. Turning it off for real means the menu comes back
 // and Theming shows the true state, and the user can arm it again deliberately.
 static void DisableAntialiasSetting() {
-    const char *path = "sdmc:/slaunch/config/settings.txt";
-    FILE *fp = fopen(path, "r");
+    const std::string path = menu::cfg::Path("settings.txt");
+    FILE *fp = fopen(path.c_str(), "r");
     if (!fp) return;
     std::string all;
     char line[192];
@@ -97,17 +100,16 @@ static void DisableAntialiasSetting() {
         else                                      all += line;
     }
     fclose(fp);
-    if ((fp = fopen(path, "w"))) { fwrite(all.data(), 1, all.size(), fp); fclose(fp); }
+    if ((fp = fopen(path.c_str(), "w"))) { fwrite(all.data(), 1, all.size(), fp); fclose(fp); }
 }
 
 static bool IsFirstRun() {
     struct stat st;
-    return stat(SetupMarker, &st) != 0;
+    return stat(SetupMarkerPath().c_str(), &st) != 0;
 }
 static void MarkSetupDone() {
-    mkdir("sdmc:/slaunch", 0777);
-    mkdir("sdmc:/slaunch/config", 0777);
-    FILE *fp = fopen(SetupMarker, "w");
+    menu::cfg::EnsureDir();
+    FILE *fp = fopen(SetupMarkerPath().c_str(), "w");
     if (fp) { fputs("1\n", fp); fclose(fp); }
 }
 
@@ -472,6 +474,28 @@ int main() {
 
     menu::ui::g_sd_ok = true; // applet NPDM grants SD access
 
+    // Everything below this line reads settings, so the account has to be
+    // chosen first. The daemon normally hands one over; when it cannot (no
+    // account was selected, or an older daemon), fall back to the first one on
+    // the console rather than to a console-wide file - Menu::Init resolves it
+    // the same way, so the nickname on the top bar and the settings underneath
+    // it always belong to the same person.
+    {
+        AccountUid uid = status.selected_user;
+        if (!accountUidIsValid(&uid)) {
+            s32 count = 0;
+            AccountUid uids[ACC_USER_LIST_SIZE];
+            if (R_SUCCEEDED(accountListAllUsers(uids, ACC_USER_LIST_SIZE, &count)) && count > 0)
+                uid = uids[0];
+        }
+        status.selected_user = uid;
+        menu::cfg::SetUser(uid);
+        // One-shot: an install from before per-account settings hands its
+        // config to whoever boots the menu first. No-op afterwards.
+        menu::cfg::MigrateLegacy();
+        BootLog("applet: config dir %s", menu::cfg::Dir().c_str());
+    }
+
     menu::gfx::Gfx gfx;
     // Read straight from the config rather than through Menu: the renderer has
     // to be built with this already decided, and Menu is not constructed until
@@ -486,7 +510,7 @@ int main() {
     // console that can only be recovered by editing the SD card on a PC.
     {
         bool want_aa = false;
-        FILE *fp = fopen("sdmc:/slaunch/config/settings.txt", "r");
+        FILE *fp = fopen(menu::cfg::Path("settings.txt").c_str(), "r");
         if (fp) {
             char line[128];
             while (fgets(line, sizeof(line), fp)) {

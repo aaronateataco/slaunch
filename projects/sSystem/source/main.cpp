@@ -20,6 +20,7 @@
 #include <sl/sys/la/LibraryApplet.hpp>
 #include <sl/sys/ecs/ExternalContent.hpp>
 #include <sl/sys/pwr/Power.hpp>
+#include <sl/sys/hb/LaunchQueue.hpp>
 
 using namespace sl;
 using namespace sl::smi;
@@ -110,6 +111,59 @@ static void CleanupHbOverride() {
     remove("sdmc:/slaunch/hbtarget.txt");
     DaemonLog("hbapp: donor 0x%016lx restored", g_HbOverrideDonor);
     g_HbOverrideDonor = 0;
+}
+
+// hbloader reads this on start: the .nro to run, and on a second line the argv
+// to hand it. Without the second line the loader falls back to the quoted path,
+// which is what hbmenu passes for a plain launch.
+static void WriteHbTarget(const char *nro_path, const char *argv) {
+    FILE *tf = fopen("sdmc:/slaunch/hbtarget.txt", "w");
+    if (!tf) return;
+    fprintf(tf, "%s\n", nro_path);
+    if (argv && argv[0]) fprintf(tf, "%s\n", argv);
+    fclose(tf);
+}
+
+// The donor title the menu last picked. Only read when a queued request asks
+// for application mode without naming one - a homebrew knows what it wants to
+// run, not which of this console's games is expendable.
+static u64 ConfiguredDonor() {
+    FILE *fp = fopen("sdmc:/slaunch/config/hb_donor.txt", "r");
+    if (!fp) return 0;
+    char line[32] = {};
+    u64 id = 0;
+    if (fgets(line, sizeof(line), fp)) id = strtoull(line, nullptr, 16);
+    fclose(fp);
+    return id;
+}
+
+// A homebrew asked for another homebrew. Turn the request into the pending
+// action that would have been queued had the menu asked for it, so the chain
+// runs through exactly the same launch paths. Returns false when there is
+// nothing queued, which is the ordinary case - then the menu comes back.
+static bool ChainQueuedHomebrew() {
+    hb::Request req;
+    if (!hb::LaunchQueue::Take(req)) return false;
+
+    strncpy(g_PendingHbPath, req.nro, sizeof(g_PendingHbPath) - 1);
+    g_PendingHbPath[sizeof(g_PendingHbPath) - 1] = '\0';
+    strncpy(g_PendingHbArgv, req.argv, sizeof(g_PendingHbArgv) - 1);
+    g_PendingHbArgv[sizeof(g_PendingHbArgv) - 1] = '\0';
+
+    if (req.mode == hb::LaunchMode::App) {
+        const u64 donor = req.donor ? req.donor : ConfiguredDonor();
+        if (donor) {
+            g_PendingDonorId = donor;
+            g_Pending = Pending::LaunchHomebrewApp;
+            return true;
+        }
+        // Asked for full RAM with no donor to borrow it from. Running it in the
+        // applet slot is worse than asked for but better than not running it,
+        // and the log says which happened.
+        DaemonLog("hb_queue: app mode wanted but no donor set - running as applet");
+    }
+    g_Pending = Pending::OpenHomebrew;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -292,6 +346,9 @@ static void RunPendingAction() {
                 DaemonLog("hbmenu: hbloader applet exited");
                 ecs::UnregisterExternalContent(ecs::HbloaderProgramId);
             }
+            // Something in there asked for another homebrew: run it instead of
+            // flashing the menu between the two.
+            if (ChainQueuedHomebrew()) break;
             DaemonLog("hbmenu: relaunching sMenu");
             LaunchMenu();
             break;
@@ -299,10 +356,7 @@ static void RunPendingAction() {
         case Pending::OpenHomebrew: {
             // Launch the chosen .nro via our target-aware hbloader fork: it reads
             // this one-shot file at startup and loads that .nro instead of hbmenu.
-            if (FILE *tf = fopen("sdmc:/slaunch/hbtarget.txt", "w")) {
-                fprintf(tf, "%s\n", g_PendingHbPath);
-                fclose(tf);
-            }
+            WriteHbTarget(g_PendingHbPath, g_PendingHbArgv);
             Result rc = ecs::RegisterExternalContent(ecs::HbloaderProgramId, ecs::HbloaderExefsDir);
             DaemonLog("hb: register rc=0x%x nro=%s", rc, g_PendingHbPath);
             if (R_SUCCEEDED(rc)) {
@@ -312,6 +366,8 @@ static void RunPendingAction() {
                 ecs::UnregisterExternalContent(ecs::HbloaderProgramId);
             }
             remove("sdmc:/slaunch/hbtarget.txt"); // one-shot: don't retarget hbmenu
+            // The .nro handed over to another one before exiting.
+            if (ChainQueuedHomebrew()) break;
             DaemonLog("hb: relaunching sMenu");
             LaunchMenu();
             break;
@@ -324,10 +380,7 @@ static void RunPendingAction() {
             // runtime-only, so a reboot also clears any stuck override.
             if (app::g_AppRunning) app::Terminate();
             CleanupHbOverride();   // drop any previous override first
-            if (FILE *tf = fopen("sdmc:/slaunch/hbtarget.txt", "w")) {
-                fprintf(tf, "%s\n", g_PendingHbPath);
-                fclose(tf);
-            }
+            WriteHbTarget(g_PendingHbPath, g_PendingHbArgv);
             Result rc = ecs::RegisterExternalContent(g_PendingDonorId, ecs::HbloaderAppExefsDir);
             DaemonLog("hbapp: donor=0x%016lx register rc=0x%x nro=%s",
                       g_PendingDonorId, rc, g_PendingHbPath);
@@ -388,6 +441,23 @@ static void RunPendingAction() {
         default:
             LaunchMenu();
             break;
+    }
+}
+
+// One homebrew handing over to another leaves a new pending action behind, so
+// carry those out in a loop rather than by recursing: a chain is bounded here,
+// and qlaunch keeps a flat stack while a chain of any length runs.
+//
+// The guard is not there because a long chain is expected - it is there because
+// a homebrew that queues itself would otherwise never give the console back.
+static void RunPendingActions() {
+    for (int i = 0; i < 32 && g_Pending != Pending::None; i++)
+        RunPendingAction();
+
+    if (g_Pending != Pending::None) {
+        DaemonLog("hb_queue: chain did not settle after 32 launches - back to the menu");
+        g_Pending = Pending::None;
+        LaunchMenu();
     }
 }
 
@@ -772,6 +842,10 @@ namespace ams {
             }
         }
 
+        // Before the menu, so a request left behind by a crash or a power cut
+        // cannot be picked up as this boot's first action.
+        hb::LaunchQueue::Reset();
+
         ::LaunchMenu();
 
         // qlaunch must never terminate.
@@ -791,15 +865,20 @@ namespace ams {
             if (!la::IsMenuAlive() && app::g_AppRunning && app::Update()) {
                 DaemonLog("app: exited naturally (hb_override=0x%016lx)", g_HbOverrideDonor);
                 CleanupHbOverride();  // homebrew-as-app exited -> restore the donor
-                DaemonLog("app: relaunching sMenu after app exit");
-                ::LaunchMenu();
+                // A homebrew running in a donor slot can hand over as well.
+                if (ChainQueuedHomebrew()) {
+                    RunPendingActions();
+                } else {
+                    DaemonLog("app: relaunching sMenu after app exit");
+                    ::LaunchMenu();
+                }
             }
 
             // The menu applet closed -> carry out whatever it asked for.
             if (la::g_MenuRunning && !la::IsMenuAlive()) {
                 la::StopMenu();
                 NoteMenuExited();   // may switch slots if it never came up
-                RunPendingAction();
+                RunPendingActions();
             }
 
             svcSleepThread(16'666'666ULL);

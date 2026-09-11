@@ -19,6 +19,42 @@ namespace sl::menu::ui {
     // ---------------------------------------------------------------------------
     // XMB (PSP cross-media bar)
     // ---------------------------------------------------------------------------
+    namespace {
+
+        // Homebrew that is really a way onto the internet, and so belongs in the
+        // Network column next to the browser rather than in the pile of
+        // everything else on the card. NetSurf is the one people actually have;
+        // the list exists so adding the next one is a line, not a rewrite.
+        //
+        // Matched against both the title and the file name: a .nro carries
+        // whatever title its author gave it (NetSurf's own builds have shipped
+        // as "NetSurf" and as "NetSurf Browser"), and when the title is missing
+        // the menu falls back to the file base name.
+        constexpr const char *kNetHomebrew[] = { "netsurf" };
+
+        // Case-insensitive substring search. Lowercase-ASCII only, which is all
+        // the needles above need; a UTF-8 title passes through untouched and
+        // simply does not match.
+        bool ContainsCI(const std::string &hay, const char *needle) {
+            const size_t n = strlen(needle);
+            if (n == 0 || hay.size() < n) return false;
+            for (size_t i = 0; i + n <= hay.size(); i++) {
+                size_t k = 0;
+                while (k < n && tolower((unsigned char)hay[i + k]) == needle[k]) k++;
+                if (k == n) return true;
+            }
+            return false;
+        }
+
+        bool IsNetHomebrew(const MenuItem &it) {
+            for (const char *needle : kNetHomebrew)
+                if (ContainsCI(it.name, needle) || ContainsCI(it.hb_path, needle))
+                    return true;
+            return false;
+        }
+
+    } // namespace
+
     // Which column an entry belongs to. The six columns mirror the PSP's own
     // (Settings, Photo, Music, Video, Game, Network) mapped onto what a Switch
     // actually has, keeping Game in the same place along the bar.
@@ -26,7 +62,8 @@ namespace sl::menu::ui {
         switch (it.kind) {
             case ItemKind::Game:
             case ItemKind::RandomGame:   return XmbCat::Game;
-            case ItemKind::Homebrew:
+            case ItemKind::Homebrew:     return IsNetHomebrew(it) ? XmbCat::Network
+                                                                  : XmbCat::Homebrew;
             case ItemKind::HomebrewMenu: return XmbCat::Homebrew;
             case ItemKind::Album:
             case ItemKind::MusicPlayer:  return XmbCat::Media;

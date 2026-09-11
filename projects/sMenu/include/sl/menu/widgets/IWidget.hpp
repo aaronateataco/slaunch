@@ -1,5 +1,6 @@
 #pragma once
 #include <switch.h>
+#include <sl/menu/cfg/UserCfg.hpp>
 #include <string>
 #include <vector>
 #include <mutex>
@@ -104,7 +105,7 @@ namespace sl::menu::widgets {
 
         std::string m_name;
         std::vector<Option> m_options;
-        std::string m_configPath;         // sdmc:/slaunch/config/widgets/<base>.cfg
+        std::string m_configPath;         // config/users/<id>/widgets/<base>.cfg
 
         std::unordered_map<std::string, SDL_Texture*> m_images; // gfx_image cache, keyed by path
         std::vector<int> m_socks;                               // open net_tcp sockets, closed in dtor
@@ -163,9 +164,7 @@ namespace sl::menu::widgets {
         }
 
         void SaveConfigFile() {
-            mkdir("sdmc:/slaunch", 0777);
-            mkdir("sdmc:/slaunch/config", 0777);
-            mkdir("sdmc:/slaunch/config/widgets", 0777);
+            cfg::EnsureSubdir("widgets");
             FILE* fp = fopen(m_configPath.c_str(), "w");
             if (!fp) return;
             for (auto& o : m_options)
@@ -370,7 +369,9 @@ namespace sl::menu::widgets {
 
     public:
         explicit LuaWidget(const std::string& scriptPath) {
-            m_configPath = "sdmc:/slaunch/config/widgets/" + BaseName(scriptPath) + ".cfg";
+            // Per account: two people can run the same widget with different
+            // options (their own city, their own units).
+            m_configPath = cfg::Path("widgets") + "/" + BaseName(scriptPath) + ".cfg";
 
             m_lua.open_libraries(sol::lib::base, sol::lib::string, sol::lib::math,
                                  sol::lib::table, sol::lib::os);

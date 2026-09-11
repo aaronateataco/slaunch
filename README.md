@@ -32,8 +32,9 @@ sMenu     (SDL2 library applet, served into the shop applet slot via ECS)
   \- asks sSystem (over SMI) to launch games / open system applets
 
 hbloader  (fork of nx-hbloader, served into an applet or donor-game slot)
-  \- loads a specific .nro named by slaunch/hbtarget.txt, then exits back to
-     the menu instead of reloading itself (see projects/hbloader/README.md)
+  |- loads a specific .nro named by slaunch/hbtarget.txt, then exits back to
+  |  the menu instead of reloading itself (see projects/hbloader/README.md)
+  \- can hand a chainload back to sSystem so it runs with full RAM (opt-in)
 ```
 
 SD card layout produced by the build:
@@ -51,7 +52,8 @@ slaunch/music/                                                background music (
 slaunch/sounds/                                               UI sound effects
 slaunch/widgets/                                              Lua home-screen widgets
 slaunch/themes/                                               user wallpapers (.jpg/.png)
-slaunch/config/                                               settings, saved at runtime
+slaunch/config/                                               console settings, saved at runtime
+slaunch/config/users/<account id>/                            each account's own settings
 ```
 
 ### Translations
@@ -73,6 +75,32 @@ selectable under **Theming > Fonts** for reading names in other scripts.
 
 Lua widgets drawn on the home screen and draggable with touch. See
 [docs/WIDGETS.md](docs/WIDGETS.md).
+
+### Per-account settings
+
+Everything you choose belongs to the Switch account that chose it. Theme,
+custom themes, font, icon pack, UI mode, layout tuning, tile sizes and colours,
+favourites, manual order, renamed entries, hidden system entries, pinned
+homebrew, widget placement and music all live in
+
+```
+slaunch/config/users/<account id>/
+```
+
+so two people sharing a console get two different menus. The folder is named
+after the account's 32-hex-digit id, with a `name.txt` inside holding the
+nickname - that is how you tell them apart from a PC.
+
+Content is still shared, because it is content: `themes/`, `icon_packs/`,
+`fonts/`, `music/`, `widgets/`, `covers/`, `lang/`. So is anything that
+describes the console rather than a person - the SteamGridDB key, the homebrew
+donor title, `takeover.txt` - which stays directly in `slaunch/config/`.
+
+Updating from an earlier version loses nothing: the first account to open the
+menu inherits the old `slaunch/config/` files, including its first-run setup, so
+that account sees exactly what it saw before. The originals are copied rather
+than moved, so downgrading still finds them. Any other account starts on the
+defaults and goes through first-run setup once, as a new account should.
 
 ### Deck layout
 
@@ -96,6 +124,58 @@ menu opens on the last set of stories rather than waiting for the network -
 Nintendo is refetched after six hours, a game's Steam news after a day. Box art
 is the same SteamGridDB fetch Flow uses, so **Theming > SteamGridDB key** is
 worth setting for this layout too.
+
+### Homebrew that launches homebrew
+
+An .nro handing over to another one (hbmenu opening something, an installer
+restarting you into what it just installed) works the way it always has:
+`envSetNextLoad`, and hbloader loads the next .nro in the same process.
+
+What that cannot do is change the terms it runs under. Homebrew started from
+the Homebrew menu lives in an applet slot with a small heap, and no process can
+promote itself to a full-RAM application - that means serving hbloader into a
+donor game's slot, which only the daemon can do. So the daemon watches a drop
+box:
+
+```
+sdmc:/slaunch/hb_queue/<name>.req      mode=app | nro=... | argv=... | donor=...
+```
+
+Any homebrew can write one with plain stdio (format and a ready-made writer:
+`libs/sCommon/include/sl/sys/HbLaunchRequest.hpp`). The daemon takes it at the
+moment the homebrew that queued it exits - never while it is still on screen -
+and chains straight into the next launch instead of bouncing through the menu.
+`donor=` may be left out, in which case the donor set in **Homebrew > Set
+donor** is used; if none is set, it runs as an applet and says so in
+`daemon.log`. Requests are one-shot and deleted as they are taken, valid or
+not, so a bad one costs a launch rather than a boot loop, and the path must be
+an .nro that exists on the card.
+
+To get this for homebrew that knows nothing about sLaunch, create
+
+```
+sdmc:/slaunch/config/hb_chain_app.txt     containing: 1
+```
+
+and hbloader will hand *every* chainload out of an applet slot to the daemon,
+so what hbmenu opens runs with full RAM. It is opt-in because it changes where
+those launches happen: the homebrew you chainloaded from is gone (you return to
+sLaunch rather than to it), and starting a donor title takes longer than
+loading an .nro in place.
+
+### Content filter
+
+Off unless you ask for it. With
+
+```
+sdmc:/slaunch/config/content_filter.txt    containing: enabled=1
+```
+
+the covers and news the menu fetches are checked for adult and extreme-violence
+content before anything is downloaded or shown - by keyword, by ESRB/PEGI/USK
+rating and by Steam store tags. It filters what sLaunch pulls off the internet;
+it is not a parental control over what is installed on the console. See
+[docs/CONTENT_FILTER.md](docs/CONTENT_FILTER.md).
 
 ## Building
 

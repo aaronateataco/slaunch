@@ -2,6 +2,7 @@
 #include <unordered_set>
 #include <sl/menu/ui/Locale.hpp>
 #include <sl/menu/net/Http.hpp>
+#include <sl/menu/net/ContentFilter.hpp>
 #include <sl/smi/Protocol.hpp>
 #include <SDL2/SDL_image.h>
 #include <cstdio>
@@ -151,16 +152,16 @@ namespace sl::menu::ui {
     }
     void Menu::LoadSysEntries() {
         m_sys_hidden = 0;
-        FILE *fp = fopen("sdmc:/slaunch/config/sysentries.txt", "r");
+        FILE *fp = fopen(GetUserConfigPath("sysentries.txt").c_str(), "r");
         if (!fp) return;
         unsigned v = 0;
         if (fscanf(fp, "%u", &v) == 1) m_sys_hidden = (u32)v;
         fclose(fp);
     }
     void Menu::SaveSysEntries() {
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen("sdmc:/slaunch/config/sysentries.txt", "w");
+        EnsureUserConfigDir();
+        const std::string path = GetUserConfigPath("sysentries.txt");
+        FILE *fp = fopen(path.c_str(), "w");
         if (!fp) return;
         fprintf(fp, "%u\n", (unsigned)m_sys_hidden);
         fclose(fp);
@@ -216,6 +217,12 @@ namespace sl::menu::ui {
                 else { char b[4]; snprintf(b, sizeof(b), "%%%02X", c); q += b; }
             }
             if (q.empty()) break;
+
+            // Check if this game should be filtered due to adult content
+            if (net::ContentFilter::ShouldFilterGameByName(m->m_pick_name)) {
+                end = PickState::Failed;  // Treat filtered as failed lookup
+                break;
+            }
 
             m->m_pick_state.store((int)PickState::Searching, std::memory_order_release);
             std::string body;
@@ -1202,7 +1209,7 @@ namespace sl::menu::ui {
             break;
         }
 
-        FILE *fp = fopen("sdmc:/slaunch/config/icon_pack.txt", "r");
+        FILE *fp = fopen(GetUserConfigPath("icon_pack.txt").c_str(), "r");
         if (!fp) return;   // no saved choice: keep the default picked above
         char line[64];
         while (fgets(line, sizeof(line), fp)) {
@@ -1217,9 +1224,9 @@ namespace sl::menu::ui {
         if (m_icon_pack_idx > max_idx) m_icon_pack_idx = 0;
     }
     void Menu::SaveIconPackSetting() {
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen("sdmc:/slaunch/config/icon_pack.txt", "w");
+        EnsureUserConfigDir();
+        const std::string path = GetUserConfigPath("icon_pack.txt");
+        FILE *fp = fopen(path.c_str(), "w");
         if (!fp) return;
         fprintf(fp, "icon_pack=%d\n", m_icon_pack_idx);
         fclose(fp);
@@ -1492,7 +1499,7 @@ namespace sl::menu::ui {
     void Menu::LoadFontConfig() {
         m_font_applied = 0;
         if (!g_sd_ok) { ApplyFont(0); return; }
-        FILE *fp = fopen("sdmc:/slaunch/config/font.cfg", "r");
+        FILE *fp = fopen(GetUserConfigPath("font.cfg").c_str(), "r");
         if (fp) {
             char line[160];
             if (fgets(line, sizeof(line), fp)) {
@@ -1510,9 +1517,8 @@ namespace sl::menu::ui {
     }
     void Menu::SaveFontConfig() {
         if (!g_sd_ok) return;
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen("sdmc:/slaunch/config/font.cfg", "w");
+        EnsureUserConfigDir();
+        FILE *fp = fopen(GetUserConfigPath("font.cfg").c_str(), "w");
         if (!fp) return;
         const char *name = (m_font_applied >= 0 && m_font_applied < (int)m_font_names.size())
                            ? m_font_names[m_font_applied].c_str() : "Default (System)";
@@ -1891,7 +1897,7 @@ namespace sl::menu::ui {
     // ---- Homebrew (.nro) browser -------------------------------------------
     void Menu::LoadHbPins() {
         m_hb_pins.clear();
-        FILE *fp = fopen("sdmc:/slaunch/config/homebrew.txt", "r");
+        FILE *fp = fopen(GetUserConfigPath("homebrew.txt").c_str(), "r");
         if (!fp) return;
         char line[FS_MAX_PATH + 2];
         while (fgets(line, sizeof(line), fp)) {
@@ -1943,9 +1949,8 @@ namespace sl::menu::ui {
         RebuildItems();
     }
     void Menu::SaveHbPins() {
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen("sdmc:/slaunch/config/homebrew.txt", "w");
+        EnsureUserConfigDir();
+        FILE *fp = fopen(GetUserConfigPath("homebrew.txt").c_str(), "w");
         if (!fp) return;
         for (auto &p : m_hb_pins) fprintf(fp, "%s\n", p.path.c_str());
         fclose(fp);

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #define DEFAULT_NRO "sdmc:/hbmenu.nro"
 
@@ -12,6 +13,24 @@
 // control to sLaunch) instead of stock hbloader's "reload the default NRO
 // forever" loop, which made closed homebrew reopen endlessly.
 #define TARGET_FILE "sdmc:/slaunch/hbtarget.txt"
+
+// sLaunch fork: handing a chainload back to the daemon.
+//
+// An .nro started in an applet slot gets a small heap, and nothing inside this
+// process can change that - promoting homebrew to a full-RAM application means
+// serving this loader into a donor game's slot, which only sSystem can do. So
+// when the user asks for it, a chainload from applet mode is not loaded here at
+// all: it is written to the daemon's drop box (format: sCommon's
+// HbLaunchRequest.hpp) and this process exits, and sSystem starts the .nro in
+// the donor slot instead.
+//
+// Opt-in, because it changes where every chainload runs: without OPT_IN_FILE
+// holding a 1, chainloading behaves exactly as it did - loaded here, in the
+// slot this loader already has.
+#define OPT_IN_FILE  "sdmc:/slaunch/config/hb_chain_app.txt"
+#define QUEUE_DIR    "sdmc:/slaunch/hb_queue"
+#define QUEUE_TMP    "sdmc:/slaunch/hb_queue/pending.tmp"
+#define QUEUE_REQ    "sdmc:/slaunch/hb_queue/request.req"
 
 const char g_noticeText[] =
     "nx-hbloader " VERSION "\0"
@@ -317,6 +336,41 @@ static void getCodeMemoryCapability(void)
     }
 }
 
+// Returns true when sdmc:/slaunch/config/hb_chain_app.txt holds a 1. Assumes
+// the SD card is already mounted.
+static bool chainToAppWanted(void)
+{
+    int fd = open(OPT_IN_FILE, O_RDONLY);
+    if (fd < 0) return false;
+    char buf[8] = {0};
+    ssize_t n = read(fd, buf, sizeof(buf)-1);
+    close(fd);
+    return n > 0 && buf[0] == '1';
+}
+
+// Hand the pending chainload to sSystem as an application-mode request. Written
+// to a temporary name and renamed, so the daemon never sees half a request.
+// Returns true only if the request is safely on the card.
+static bool queueChainForDaemon(void)
+{
+    mkdir("sdmc:/slaunch", 0777);
+    mkdir(QUEUE_DIR, 0777);
+
+    FILE *fp = fopen(QUEUE_TMP, "w");
+    if (!fp) return false;
+    fprintf(fp, "mode=app\n");
+    fprintf(fp, "nro=%s\n", g_nextNroPath);
+    if (g_nextArgv[0]) fprintf(fp, "argv=%s\n", g_nextArgv);
+    // No donor named: the daemon uses whichever one the menu has configured.
+    bool ok = (fflush(fp) == 0);
+    fclose(fp);
+    if (!ok) { remove(QUEUE_TMP); return false; }
+
+    remove(QUEUE_REQ);
+    if (rename(QUEUE_TMP, QUEUE_REQ) != 0) { remove(QUEUE_TMP); return false; }
+    return true;
+}
+
 void loadNro(void)
 {
     NroHeader* header = NULL;
@@ -379,25 +433,61 @@ void loadNro(void)
                 if (tlen > 0)
                 {
                     tbuf[tlen] = '\0';
-                    tbuf[strcspn(tbuf, "\r\n")] = '\0';
+                    // First line is the .nro. A second line, when sSystem wrote
+                    // one, is the argv to hand it - that is how arguments
+                    // survive a launch made from the menu or from a queued
+                    // request, instead of every .nro being told only its own
+                    // path.
+                    char *nl = strpbrk(tbuf, "\r\n");
+                    char *targ = NULL;
+                    if (nl)
+                    {
+                        *nl = '\0';
+                        targ = nl + 1;
+                        while (*targ == '\r' || *targ == '\n') targ++;
+                        targ[strcspn(targ, "\r\n")] = '\0';
+                        if (!targ[0]) targ = NULL;
+                    }
                     if (tbuf[0])
                     {
                         g_targetMode = true;
                         strncpy(g_nextNroPath, tbuf, sizeof(g_nextNroPath)-1);
                         g_nextNroPath[sizeof(g_nextNroPath)-1] = '\0';
-                        // Same argv convention hbmenu uses: quoted self-path.
-                        snprintf(g_nextArgv, sizeof(g_nextArgv), "\"%s\"", tbuf);
+                        if (targ)
+                            snprintf(g_nextArgv, sizeof(g_nextArgv), "%s", targ);
+                        else
+                            // Same argv convention hbmenu uses: quoted self-path.
+                            snprintf(g_nextArgv, sizeof(g_nextArgv), "\"%s\"", tbuf);
                     }
                 }
             }
             fsdevUnmountAll();
         }
     }
-    else if (g_targetMode && g_nextNroPath[0] == '\0')
+    else
     {
-        // Target NRO chain is done; terminate so sSystem sees the applet (or
-        // the donor application) finish and brings the menu back.
-        svcExitProcess();
+        if (g_targetMode && g_nextNroPath[0] == '\0')
+        {
+            // Target NRO chain is done; terminate so sSystem sees the applet
+            // (or the donor application) finish and brings the menu back.
+            svcExitProcess();
+        }
+
+        // A chainload out of an applet slot, with the user having asked for
+        // those to run as applications: hand it to sSystem and get out of the
+        // way. Only from an applet - in a donor slot this process already has
+        // the RAM and the permissions, so loading it here is strictly better.
+        if (!g_isApplication && g_nextNroPath[0] != '\0')
+        {
+            if (R_SUCCEEDED(fsdevMountSdmc()))
+            {
+                bool queued = chainToAppWanted() && queueChainForDaemon();
+                fsdevUnmountAll();
+                // Only leave if the request is actually on the card; a failed
+                // write must not cost the user the launch they asked for.
+                if (queued) svcExitProcess();
+            }
+        }
     }
 
     if (g_nextNroPath[0] == '\0')

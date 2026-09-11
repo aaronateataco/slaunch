@@ -7,7 +7,7 @@
 TARGET   := sSystem
 BUILD    := build
 SOURCES  := source source/sl/sys/app source/sl/sys/la source/sl/sys/ecs source/sl/sys/smi \
-            source/sl/sys/pwr
+            source/sl/sys/pwr source/sl/sys/hb
 INCLUDES := include ../../libs/sCommon/include
 
 COMMON_SRC := ../../libs/sCommon/source/sl/os/Applications.cpp
@@ -25,7 +25,7 @@ include $(DEVKITPRO)/libnx/switch_rules
 # App metadata
 APP_TITLE   := sSystem
 APP_AUTHOR  := sLaunch
-APP_VERSION := 1.2.0
+APP_VERSION := 1.3.0
 
 #---------------------------------------------------------------------------------
 # Compiler flags
@@ -84,9 +84,18 @@ LIBDIRS  := $(PORTLIBS) $(LIBNX) $(DEVKITPRO)/AtmosphereLibs
 #---------------------------------------------------------------------------------
 # Gather source files
 CFILES   := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.c))
-CPPFILES := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.cpp)) $(COMMON_SRC)
+CPPFILES := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.cpp))
+
+# Sources shared with the other project get an object inside THIS project's
+# build dir. The obvious $(BUILD)/%.o mapping does not: "../../libs/..." keeps
+# its leading ../.., so build/../../libs/... resolves to projects/libs/... -
+# the same path for sMenu and for sSystem. Both then compiled this file there,
+# with their own flags (sysmodule specs here, libnx applet specs there), and
+# each linked whichever object the other had written last. That is a menu
+# object inside the daemon, or the reverse, decided by build order.
+COMMON_OBJ := $(patsubst %.cpp,$(BUILD)/sCommon/%.o,$(notdir $(COMMON_SRC)))
 SFILES   := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.s))
-OFILES   := $(patsubst %.cpp,$(BUILD)/%.o,$(CPPFILES)) \
+OFILES   := $(patsubst %.cpp,$(BUILD)/%.o,$(CPPFILES)) $(COMMON_OBJ) \
             $(patsubst %.c,$(BUILD)/%.o,$(CFILES)) \
             $(patsubst %.s,$(BUILD)/%.o,$(SFILES))
 
@@ -118,6 +127,10 @@ $(BUILD)/$(TARGET).nso: $(BUILD)/$(TARGET).elf
 $(BUILD)/$(TARGET).elf: $(OFILES) | $(BUILD)
 	@$(CXX) $(LDFLAGS) -o $@ $^ $(foreach lib,$(LIBDIRS),-L$(lib)/lib) $(LIBS)
 	@$(NM) -CSn $@ > $(BUILD)/$(TARGET).lst
+
+$(BUILD)/sCommon/%.o: ../../libs/sCommon/source/sl/os/%.cpp | $(BUILD)
+	@mkdir -p $(dir $@)
+	@$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 $(BUILD)/%.o: %.cpp | $(BUILD)
 	@mkdir -p $(dir $@)

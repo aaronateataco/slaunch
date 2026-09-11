@@ -31,7 +31,8 @@ end
 
 Declare a `widget` table so the menu can list and edit your settings. The
 resolved values live in a global `config` table (`config.city`, ...). They're
-saved to `sdmc:/slaunch/config/widgets/<script>.cfg`.
+saved to `sdmc:/slaunch/config/users/<account id>/widgets/<script>.cfg`, so
+each account keeps its own options for the same widget.
 
 ```lua
 widget = {

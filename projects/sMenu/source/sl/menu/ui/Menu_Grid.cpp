@@ -245,7 +245,7 @@ namespace sl::menu::ui {
     }
     void Menu::LoadTileCfg() {
         m_tilecfg.clear();
-        FILE *fp = fopen(kTileCfgPath, "r");
+        FILE *fp = fopen(GetUserConfigPath(kTileCfgFile).c_str(), "r");
         if (!fp) return;
         char line[192];
         while (fgets(line, sizeof(line), fp)) {
@@ -268,9 +268,8 @@ namespace sl::menu::ui {
         fclose(fp);
     }
     void Menu::SaveTileCfg() {
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen(kTileCfgPath, "w");
+        EnsureUserConfigDir();
+        FILE *fp = fopen(GetUserConfigPath(kTileCfgFile).c_str(), "w");
         if (!fp) return;
         for (const auto &kv : m_tilecfg) {
             char col[8] = "-";

@@ -1,4 +1,6 @@
 #include <sl/menu/audio/Music.hpp>
+#include <sl/menu/cfg/UserCfg.hpp>
+#include <string>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_mixer.h>
 #include <dirent.h>
@@ -11,7 +13,9 @@ namespace sl::menu::audio {
 
     namespace {
         constexpr const char *kDir   = "sdmc:/slaunch/music";
-        constexpr const char *kState = "sdmc:/slaunch/config/music.txt";
+        // The tracks are shared; which one is playing, how loud, and whether
+        // music is on at all is per account.
+        inline std::string StatePath() { return cfg::Path("music.txt"); }
 
         bool HasAudioExt(const char *name) {
             size_t n = strlen(name);
@@ -211,7 +215,7 @@ namespace sl::menu::audio {
     std::string Music::CurrentName() const { return TrackName(m_index); }
 
     void Music::LoadState() {
-        FILE *fp = fopen(kState, "r");
+        FILE *fp = fopen(StatePath().c_str(), "r");
         if (!fp) return;
         char line[64];
         std::string want;
@@ -231,9 +235,8 @@ namespace sl::menu::audio {
     }
 
     void Music::SaveState() {
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen(kState, "w");
+        cfg::EnsureDir();
+        FILE *fp = fopen(StatePath().c_str(), "w");
         if (!fp) return;
         fprintf(fp, "enabled=%d\n", m_enabled ? 1 : 0);
         fprintf(fp, "volume=%d\n",  m_volume);

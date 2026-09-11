@@ -2,6 +2,7 @@
 #include <unordered_set>
 #include <sl/menu/ui/Locale.hpp>
 #include <sl/menu/net/Http.hpp>
+#include <sl/menu/net/ContentFilter.hpp>
 #include <sl/smi/Protocol.hpp>
 #include <SDL2/SDL_image.h>
 #include <cstdio>
@@ -168,6 +169,13 @@ namespace sl::menu::ui {
                 }
             };
 
+            // Check if this game should be filtered due to adult content
+            if (net::ContentFilter::ShouldFilterGameByName(m->m_cover_name)) {
+                end = CoverState::Filtered;
+                logline("filtered", 0, 0, m->m_cover_name.size());
+                break;
+            }
+
             std::string body;
             long http = 0; int rc = 0;
             char dst[96];
@@ -300,18 +308,24 @@ namespace sl::menu::ui {
                     if (!okd && (http == 0 || http >= 500)) m->m_steam_dead = true;
 
                     if (okd) {
-                        // Each screenshot carries a thumbnail and a full-size
-                        // image; the panels are drawn a few hundred pixels wide,
-                        // so the full one is what is wanted.
-                        const std::vector<std::string> imgs =
-                            JsonStrAll(body, "path_full", 2);
-                        for (size_t k = 0; k < imgs.size(); k++) {
-                            snprintf(dst, sizeof(dst),
-                                     "sdmc:/slaunch/covers/%016llX_s%u.jpg",
-                                     (unsigned long long)m->m_cover_id, (unsigned)k);
-                            const bool sok = net::Download(imgs[k].c_str(), dst, 25);
-                            logline(sok ? "shot-ok" : "shot-fail", 0, 0, imgs[k].size());
-                            if (sok) { shots++; m->m_shots_ok = true; }
+                        // Check if Steam store page indicates adult content
+                        if (net::ContentFilter::ShouldFilterBySteamTags(body)) {
+                            logline("steam-filtered", 0, 0, body.size());
+                            shots = 0;  // Don't download filtered screenshots
+                        } else {
+                            // Each screenshot carries a thumbnail and a full-size
+                            // image; the panels are drawn a few hundred pixels wide,
+                            // so the full one is what is wanted.
+                            const std::vector<std::string> imgs =
+                                JsonStrAll(body, "path_full", 2);
+                            for (size_t k = 0; k < imgs.size(); k++) {
+                                snprintf(dst, sizeof(dst),
+                                         "sdmc:/slaunch/covers/%016llX_s%u.jpg",
+                                         (unsigned long long)m->m_cover_id, (unsigned)k);
+                                const bool sok = net::Download(imgs[k].c_str(), dst, 25);
+                                logline(sok ? "shot-ok" : "shot-fail", 0, 0, imgs[k].size());
+                                if (sok) { shots++; m->m_shots_ok = true; }
+                            }
                         }
                     }
                 }
@@ -585,7 +599,7 @@ namespace sl::menu::ui {
     // The shelf is drawn live behind this screen, so every change is visible as
     // it is made - which is the only sane way to tune numbers like these.
     void Menu::LoadFlowConfig() {
-        FILE *fp = fopen("sdmc:/slaunch/config/flow.txt", "r");
+        FILE *fp = fopen(GetUserConfigPath("flow.txt").c_str(), "r");
         if (!fp) return;
         char line[64];
         while (fgets(line, sizeof(line), fp)) {
@@ -603,9 +617,8 @@ namespace sl::menu::ui {
         fclose(fp);
     }
     void Menu::SaveFlowConfig() {
-        mkdir("sdmc:/slaunch", 0777);
-        mkdir("sdmc:/slaunch/config", 0777);
-        FILE *fp = fopen("sdmc:/slaunch/config/flow.txt", "w");
+        EnsureUserConfigDir();
+        FILE *fp = fopen(GetUserConfigPath("flow.txt").c_str(), "w");
         if (!fp) return;
         for (int i = 0; i < kFlowParamN; i++)
             fprintf(fp, "%s=%.4f\n", kFlowKeys[i], *kFlowParams[i].value);

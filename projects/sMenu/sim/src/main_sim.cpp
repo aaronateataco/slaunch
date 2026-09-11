@@ -264,6 +264,14 @@ int main(int argc, char **argv) {
         printf("[sim] card: %s/%s\n", root.c_str(), card);
     }
 
+    // Same as the console: pick the account before anything reads a setting,
+    // so the sim exercises the per-account paths rather than a special case.
+    AccountUid uid{};
+    accountListAllUsers(&uid, 1, nullptr);
+    sl::menu::cfg::SetUser(uid);
+    sl::menu::cfg::MigrateLegacy();
+    printf("[sim] config: %s\n", sl::menu::cfg::Dir().c_str());
+
     static const char *kAaMarker = "sdmc:/slaunch/config/aa_pending";
     bool aa_confirmed = false;
     sl::menu::gfx::Gfx gfx;
@@ -275,7 +283,7 @@ int main(int argc, char **argv) {
     // cleared further down once a frame has been presented.
     if (scale == 1) {
         bool want_aa = false;
-        if (FILE *fp = fopen("sdmc:/slaunch/config/settings.txt", "r")) {
+        if (FILE *fp = fopen(sl::menu::cfg::Path("settings.txt").c_str(), "r")) {
             char line[128];
             while (fgets(line, sizeof(line), fp)) {
                 int v = 0;
@@ -290,12 +298,12 @@ int main(int argc, char **argv) {
                 want_aa = false;
                 remove(kAaMarker);
                 // Same as the console: make the disarm stick.
-                if (FILE *cf = fopen("sdmc:/slaunch/config/settings.txt", "r")) {
+                if (FILE *cf = fopen(sl::menu::cfg::Path("settings.txt").c_str(), "r")) {
                     std::string all; char ln[192];
                     while (fgets(ln, sizeof(ln), cf))
                         all += (strncmp(ln, "antialias=", 10) == 0) ? "antialias=0\n" : ln;
                     fclose(cf);
-                    if ((cf = fopen("sdmc:/slaunch/config/settings.txt", "w"))) {
+                    if ((cf = fopen(sl::menu::cfg::Path("settings.txt").c_str(), "w"))) {
                         fwrite(all.data(), 1, all.size(), cf); fclose(cf);
                     }
                 }
@@ -319,8 +327,6 @@ int main(int argc, char **argv) {
         Menu ui;
         sl::menu::ui::g_sd_ok = true;
 
-        AccountUid uid{};
-        accountListAllUsers(&uid, 1, nullptr);
         ui.Init(&gfx, uid, suspended, oobe);
         if (suspended) ui.SetSuspendedApp(suspended);
 

@@ -10,7 +10,7 @@ BUILD    := build
 SOURCES  := source source/sl/menu/ui source/sl/menu/gfx source/sl/menu/smi \
             source/sl/menu/net source/sl/menu/widgets source/sl/menu/audio \
             source/sl/menu/hb source/sl/menu/play source/sl/menu/dbg \
-            source/sl/menu/news ../../libs/Lua
+            source/sl/menu/news source/sl/menu/cfg ../../libs/Lua
 
 INCLUDES := include ../../libs/sCommon/include \
             ../../libs/Lua ../../libs/sol2/include
@@ -38,7 +38,7 @@ include $(DEVKITPRO)/libnx/switch_rules
 
 APP_TITLE   := sMenu
 APP_AUTHOR  := etonedemid
-APP_VERSION := 1.2.0
+APP_VERSION := 1.3.0
 
 #---------------------------------------------------------------------------------
 ARCH     := -march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE
@@ -90,12 +90,26 @@ LIBS     := $(CURL_LIBS) $(SDL_LIBS)
 LIBDIRS  := $(PORTLIBS) $(LIBNX)
 
 #---------------------------------------------------------------------------------
-CFILES   := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.c))
-CFILES   := $(filter-out %/lua.c %/luac.c,$(CFILES))
+# Lua is out-of-tree too, and lands outside build/ for the same reason the
+# shared source did (see COMMON_OBJ below) - so its objects survived `make
+# clean` and were silently reused. Its objects go under build/Lua/ instead.
+LUA_SRC  := $(filter-out %/lua.c %/luac.c,$(wildcard ../../libs/Lua/*.c))
+LUA_OBJ  := $(patsubst %.c,$(BUILD)/Lua/%.o,$(notdir $(LUA_SRC)))
 
-CPPFILES := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.cpp)) $(COMMON_SRC)
+CFILES   := $(foreach dir,$(filter-out ../../libs/Lua,$(SOURCES)),$(wildcard $(dir)/*.c))
+
+CPPFILES := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.cpp))
+
+# Sources shared with the other project get an object inside THIS project's
+# build dir. The obvious $(BUILD)/%.o mapping does not: "../../libs/..." keeps
+# its leading ../.., so build/../../libs/... resolves to projects/libs/... -
+# the same path for sMenu and for sSystem. Both then compiled this file there,
+# with their own flags (sysmodule specs here, libnx applet specs there), and
+# each linked whichever object the other had written last. That is a menu
+# object inside the daemon, or the reverse, decided by build order.
+COMMON_OBJ := $(patsubst %.cpp,$(BUILD)/sCommon/%.o,$(notdir $(COMMON_SRC)))
 SFILES   := $(foreach dir,$(SOURCES),$(wildcard $(dir)/*.s))
-OFILES   := $(patsubst %.cpp,$(BUILD)/%.o,$(CPPFILES)) \
+OFILES   := $(patsubst %.cpp,$(BUILD)/%.o,$(CPPFILES)) $(COMMON_OBJ) $(LUA_OBJ) \
             $(patsubst %.c,$(BUILD)/%.o,$(CFILES)) \
             $(patsubst %.s,$(BUILD)/%.o,$(SFILES))
 
@@ -126,6 +140,14 @@ $(BUILD)/$(TARGET).nso: $(BUILD)/$(TARGET).elf
 $(BUILD)/$(TARGET).elf: $(OFILES) | $(BUILD)
 	@$(CXX) $(LDFLAGS) -o $@ $^ $(foreach lib,$(LIBDIRS),-L$(lib)/lib) $(LIBS)
 	@$(NM) -CSn $@ > $(BUILD)/$(TARGET).lst
+
+$(BUILD)/Lua/%.o: ../../libs/Lua/%.c | $(BUILD)
+	@mkdir -p $(dir $@)
+	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+
+$(BUILD)/sCommon/%.o: ../../libs/sCommon/source/sl/os/%.cpp | $(BUILD)
+	@mkdir -p $(dir $@)
+	@$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 $(BUILD)/%.o: %.cpp | $(BUILD)
 	@mkdir -p $(dir $@)

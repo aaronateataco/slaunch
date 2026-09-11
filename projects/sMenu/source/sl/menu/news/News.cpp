@@ -1,5 +1,6 @@
 #include <sl/menu/news/News.hpp>
 #include <sl/menu/net/Http.hpp>
+#include <sl/menu/net/ContentFilter.hpp>
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -410,7 +411,10 @@ namespace sl::menu::news {
                              (unsigned)out.size());
                     if (net::Download(url.c_str(), dst, 20)) it.img = dst;
                 }
-                out.push_back(std::move(it));
+                // Filter adult content before adding to output
+                if (!net::ContentFilter::ShouldFilterNewsArticle(it.title, it.summary, it.kind)) {
+                    out.push_back(std::move(it));
+                }
             }
             p = next;
         }
@@ -518,7 +522,10 @@ namespace sl::menu::news {
                 if (d != std::string::npos && d < lim)
                     it.date = DateUnix(body.substr(d + 7, 20));
             }
-            if (!it.title.empty()) out.push_back(std::move(it));
+            // Filter adult content before adding to output
+            if (!it.title.empty() && !net::ContentFilter::ShouldFilterSteamNews(it.title, it.summary)) {
+                out.push_back(std::move(it));
+            }
             p = next;
         }
 

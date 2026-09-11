@@ -24,7 +24,11 @@
 .PHONY: all ssystem smenu sinstaller hbloader nxlink clean package assets
 
 # Order matters: sInstaller bundles SdOut/ into its romfs, so everything that
-# stages files there (including hbloader -> assets) must run before it.
+# stages files there (including hbloader -> assets) must run before it. Listing
+# them in order here is not enough - under `make -j` the prerequisites of `all`
+# run at the same time, which staged the installer's payload out of a half-built
+# SdOut and produced an installer with no daemon and no menu in it. The real
+# dependencies are declared below, next to the targets themselves.
 all: ssystem smenu hbloader assets sinstaller
 	@echo ""
 	@echo "=== sLaunch build complete ==="
@@ -38,7 +42,8 @@ all: ssystem smenu hbloader assets sinstaller
 
 # Copy bundled assets (fonts + a themes folder for user wallpapers) into the
 # SD layout so they land at sdmc:/slaunch/... on the device.
-assets:
+# hbloader first: its NSO is one of the things copied into SdOut below.
+assets: hbloader
 	@echo "--- Staging assets ---"
 	@mkdir -p SdOut/slaunch/fonts SdOut/slaunch/themes SdOut/slaunch/bin/hbloader SdOut/slaunch/bin/hbloader_app SdOut/slaunch/widgets SdOut/slaunch/lang
 	@cp -f assets/fonts/*.ttf SdOut/slaunch/fonts/ 2>/dev/null || true
@@ -96,7 +101,8 @@ smenu:
 	@echo "--- Building sMenu ---"
 	@$(MAKE) -C projects/sMenu
 
-sinstaller:
+# Last, always: it copies the finished SdOut/ into its own romfs.
+sinstaller: ssystem smenu hbloader assets
 	@echo "--- Building sInstaller ---"
 	@$(MAKE) -C projects/sInstaller
 

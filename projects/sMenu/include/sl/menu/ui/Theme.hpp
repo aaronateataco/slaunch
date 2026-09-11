@@ -6,8 +6,10 @@
 // A theme is a background (vertical gradient top->bottom, optionally overlaid
 // with a wallpaper image loaded from the SD card) plus a set of UI colors.
 // Five themes ship built in; any number of user "Custom" themes can be created,
-// edited and deleted, all persisted to sdmc:/slaunch/config/theme.cfg. Users
-// can drop their own wallpaper under sdmc:/slaunch(/themes) and reference it.
+// edited and deleted, all persisted to the account's own theme.cfg (see
+// UserCfg.hpp - two people on one console keep two different looks). Users can
+// drop their own wallpaper under sdmc:/slaunch(/themes) and reference it; the
+// wallpapers themselves are shared, only the choice of one is per account.
 
 namespace sl::menu::ui {
 

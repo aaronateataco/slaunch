@@ -43,9 +43,11 @@ MENU_SRCS := \
 	$(MENU_DIR)/source/sl/menu/audio/Sound.cpp \
 	$(MENU_DIR)/source/sl/menu/hb/Homebrew.cpp \
 	$(MENU_DIR)/source/sl/menu/net/Http.cpp \
+	$(MENU_DIR)/source/sl/menu/net/ContentFilter.cpp \
 	$(MENU_DIR)/source/sl/menu/news/News.cpp \
 	$(MENU_DIR)/source/sl/menu/play/PlayStats.cpp \
 	$(MENU_DIR)/source/sl/menu/widgets/Widgets.cpp \
+	$(MENU_DIR)/source/sl/menu/cfg/UserCfg.cpp \
 	$(MENU_DIR)/source/sl/menu/dbg/Debug.cpp
 
 SIM_SRCS  := \

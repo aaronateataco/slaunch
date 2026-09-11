@@ -21,6 +21,22 @@ different npdm):
    sMenu back.
 3. **Missing target is not fatal.** In target mode a missing/unreadable NRO
    exits back to the menu instead of hard-aborting with a crash dialog.
+4. **argv on the second line.** `hbtarget.txt` may carry a second line holding
+   the argv to hand the NRO. Without it the loader falls back to the quoted
+   path, which is what hbmenu passes and what this fork did before. sSystem
+   writes the line whenever the menu (or a queued request) supplied arguments,
+   so they survive the launch instead of being dropped at the door.
+5. **Chainloading to application mode (opt-in).** An .nro running in the applet
+   slot gets a small heap, and nothing inside this process can promote itself to
+   a full-RAM application - that needs sSystem to serve this loader into a donor
+   game's slot. So when `sdmc:/slaunch/config/hb_chain_app.txt` holds a `1` and
+   the running NRO chainloads, the loader writes the target to sSystem's drop
+   box (`sdmc:/slaunch/hb_queue/`, format in `sCommon/sl/sys/HbLaunchRequest.hpp`)
+   and exits instead of loading it here; sSystem then starts it in the donor
+   slot. Only from an applet - in a donor slot the process already has the RAM,
+   so loading in place is strictly better - and only if the request reaches the
+   card, so a failed write costs nothing. Without the opt-in file, chainloading
+   behaves exactly as it always did.
 
 Behavior with no target file (Homebrew menu case) is unchanged from upstream:
 homebrew exiting returns to hbmenu.

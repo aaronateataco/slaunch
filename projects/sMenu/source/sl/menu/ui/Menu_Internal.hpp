@@ -613,6 +613,13 @@ namespace sl::menu::ui {
         struct LogLine { bool head; const char *text; };
         // Newest first. Headers are version tags; the rest are one-line summaries.
         inline const LogLine kChangelog[] = {
+            { true,  "v1.3.0" },
+            { false, "Settings are per user now - theme, layout, favourites and the rest follow the account" },
+            { false, "Your existing settings carry over to the first account that opens the menu" },
+            { false, "Homebrew can hand over to other homebrew, and arguments now survive the launch" },
+            { false, "Homebrew chainloads can run with full RAM (see the README)" },
+            { false, "Optional content filter for covers and news, off unless you turn it on" },
+            { false, "NetSurf is filed under Network in XMB, next to the browser" },
             { true,  "v1.2.0" },
             { false, "Deck mode - a SteamOS-style layout: your library, news cards, a library grid and a side menu" },
             { false, "Every button hint is now a real button icon, not text" },
@@ -1038,7 +1045,7 @@ namespace sl::menu::ui {
     // One line per customised entry:  <ItemKey>=<w>x<h>,<rrggbb|->
     // Entries the user has not touched are simply absent, so the file stays
     // small and a default that changes later still reaches everyone.
-    inline constexpr const char *kTileCfgPath = "sdmc:/slaunch/config/tiles.txt";
+    inline constexpr const char *kTileCfgFile = "tiles.txt";   // in the account config folder
 
 
     // ---- Flow: 3D coverflow -------------------------------------------------
