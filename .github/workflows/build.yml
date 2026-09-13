@@ -41,6 +41,12 @@ jobs:
           make -j$(nproc)
           mkdir -p $DEVKITPRO/AtmosphereLibs/include $DEVKITPRO/AtmosphereLibs/lib
           cp -r include/. $DEVKITPRO/AtmosphereLibs/include/
+          # libstratosphere's own headers are not enough: stratosphere.hpp's
+          # first include is <vapours.hpp>, which lives in the sibling
+          # libvapours. Without this sSystem fails to compile its first
+          # translation unit. The README's build instructions have always
+          # copied both - this step only copied one.
+          cp -r ../libvapours/include/. $DEVKITPRO/AtmosphereLibs/include/
           find . -name "*.a" -exec cp {} $DEVKITPRO/AtmosphereLibs/lib/ \;
 
       - name: Build sMenu
