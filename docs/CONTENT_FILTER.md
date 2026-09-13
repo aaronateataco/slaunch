@@ -13,6 +13,9 @@ The content filter checks multiple sources for adult content:
 - **Steam News**: Filters news posts for games based on title and content analysis
 
 ### Cover/Art Fetcher
+- **GameTDB**: Checks the game name before any request is made. Art there is
+  addressed by title id and carries no metadata alongside the image, so the name
+  check is the whole of what applies (see [GAMETDB.md](GAMETDB.md))
 - **SteamGridDB**: Checks game search results and grid metadata
 - **Steam Store**: Scans store API responses for adult content tags and metadata
 

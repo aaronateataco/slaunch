@@ -3,6 +3,7 @@
 #include <sl/menu/ui/Locale.hpp>
 #include <sl/menu/net/Http.hpp>
 #include <sl/menu/net/ContentFilter.hpp>
+#include <sl/menu/net/GameTdb.hpp>
 #include <sl/smi/Protocol.hpp>
 #include <SDL2/SDL_image.h>
 #include <cstdio>
@@ -180,8 +181,43 @@ namespace sl::menu::ui {
             long http = 0; int rc = 0;
             char dst[96];
 
+            // ---- GameTDB ----------------------------------------------------
+            //
+            // Asked first, because it needs no API key and what it holds is a
+            // scan of the actual case front. It is addressed by the cartridge
+            // product code rather than the title id, so it only has anything to
+            // say about titles listed in config/gametdb_ids.txt and reports
+            // itself off entirely until that file exists - which is what keeps
+            // this inert for everyone who has not opted in. A miss falls through
+            // to SteamGridDB below exactly as before.
+            if (need_cover && net::gametdb::Enabled()) {
+                mkdir("sdmc:/slaunch/covers", 0777);
+                snprintf(dst, sizeof(dst), "sdmc:/slaunch/covers/%016llX.jpg",
+                         (unsigned long long)m->m_cover_id);
+                const net::gametdb::Result g =
+                    net::gametdb::FetchCover(m->m_cover_id, dst);
+                logline(g.ok     ? "gametdb-ok"
+                        : g.no_id ? "gametdb-no-id"
+                                  : "gametdb-miss",
+                        g.http, g.curl, g.url.size());
+                if (g.ok) {
+                    m->m_cover_ok = true;
+                    need_cover    = false;
+                    end           = CoverState::Got;
+                }
+            }
+
             if (!need_cover && !need_hero) {
                 end = CoverState::Got;      // already on the card
+                goto shots;
+            }
+
+            // Everything past here is SteamGridDB, which does nothing without a
+            // key. That is no longer a failure on its own: with GameTDB having
+            // supplied the cover the card has the art either way, and the only
+            // thing left unfetched is Deck's hero tile.
+            if (m->m_sgdb_key.empty()) {
+                if (need_cover) end = CoverState::NoKey;
                 goto shots;
             }
 
@@ -338,15 +374,25 @@ namespace sl::menu::ui {
             // a misleading one.
         } while (false);
 
+        // A cover that did land is a success however the rest of the fetch went.
+        // The hero and screenshot steps below it both write `end` on their way
+        // through, so without this a SteamGridDB search that found no match
+        // would report failure for a title whose art is already on the card -
+        // which is exactly what happens when GameTDB supplied the cover.
+        if (m->m_cover_ok) end = CoverState::Got;
+
         m->m_cover_state.store((int)end, std::memory_order_release);
         m->m_cover_done.store(true, std::memory_order_release);
     }
     void Menu::StartCoverFetch(u64 app_id, const std::string &name) {
         if (m_cover_running || app_id == 0 || name.empty()) return;
 
-        if (!SgdbKeyPresent()) {
+        // SgdbKeyPresent() is called for its side effect as much as its answer:
+        // it is what loads m_sgdb_key, which the worker reads to decide whether
+        // to go near SteamGridDB at all.
+        if (!SgdbKeyPresent() && !net::gametdb::Enabled()) {
             m_cover_state.store((int)CoverState::NoKey, std::memory_order_release);
-            return;                        // no key: feature stays off entirely
+            return;                        // no key and no keyless source
         }
 
         if (m_cover_tried.count(app_id))  return;

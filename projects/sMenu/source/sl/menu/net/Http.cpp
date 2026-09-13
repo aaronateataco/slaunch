@@ -111,7 +111,11 @@ namespace sl::menu::net {
         }
     }
 
-    bool Download(const char *url, const char *path, long timeout_s) {
+    bool Download(const char *url, const char *path, long timeout_s,
+                  long *out_http, int *out_curl) {
+        if (out_http) *out_http = 0;
+        if (out_curl) *out_curl = 0;
+
         FILE *fp = fopen(path, "wb");
         if (!fp) return false;
 
@@ -134,6 +138,9 @@ namespace sl::menu::net {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http);
         curl_easy_cleanup(curl);
         fclose(fp);
+
+        if (out_http) *out_http = http;
+        if (out_curl) *out_curl = (int)rc;
 
         const bool ok = rc == CURLE_OK && http >= 200 && http < 300;
         if (!ok) remove(path);   // don't leave a 404 page or partial file behind

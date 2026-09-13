@@ -29,6 +29,11 @@ namespace sl::menu::net {
 
     // GET url straight to a file (streamed, so it isn't size-capped like Get).
     // Returns true on HTTP 2xx; a failed/partial download leaves no file.
-    bool Download(const char *url, const char *path, long timeout_s = 15);
+    // `out_http`/`out_curl` are the same diagnostics Get reports, and matter to
+    // a caller probing a list of candidate URLs: a 404 means try the next one,
+    // while no status at all means the host is unreachable and the rest of the
+    // list would each cost a full timeout to say so.
+    bool Download(const char *url, const char *path, long timeout_s = 15,
+                  long *out_http = nullptr, int *out_curl = nullptr);
 
 } // namespace sl::menu::net
