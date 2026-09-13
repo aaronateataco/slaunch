@@ -122,8 +122,9 @@ Theming, homebrew, Album, music, network, power.
 Both feeds are keyless and cached on the card (`slaunch/cache/news/`), so the
 menu opens on the last set of stories rather than waiting for the network -
 Nintendo is refetched after six hours, a game's Steam news after a day. Box art
-is the same SteamGridDB fetch Flow uses, so **Theming > SteamGridDB key** is
-worth setting for this layout too.
+is the same fetch Flow uses (see [Box art](#box-art)); the wide tile's hero art
+comes only from SteamGridDB, so **Theming > SteamGridDB key** is worth setting
+for this layout in particular.
 
 ### Homebrew that launches homebrew
 
@@ -162,6 +163,38 @@ so what hbmenu opens runs with full RAM. It is opt-in because it changes where
 those launches happen: the homebrew you chainloaded from is gone (you return to
 sLaunch rather than to it), and starting a donor title takes longer than
 loading an .nro in place.
+
+### Box art
+
+The layouts that draw a case front - Flow, Deck and Cover - fetch box art for
+the title the cursor is resting on, one at a time, into `slaunch/covers/`. Two
+sources, asked in that order:
+
+| Source | Addressed by | Key | Holds |
+|---|---|---|---|
+| [GameTDB](https://www.gametdb.com) | cartridge product code | none | scans of the retail case front |
+| SteamGridDB | game name | **Theming > SteamGridDB key** | digital 600x900 grids, and Deck's wide hero art |
+
+GameTDB goes first because it is keyless and its covers are real case scans - so
+box art can work on a console with no key set at all. A miss falls straight
+through to SteamGridDB, which is still what fetches Deck's hero tile and still
+worth a key.
+
+The catch is the product code: GameTDB files Switch art under the five characters
+printed on the cartridge (`HAC-P-AAB6B` -> `AAB6B`), and nothing in a title's
+NACP carries that, so it cannot be derived on the console. Until the menu can
+consult GameTDB's own database, the mapping is a file you write -
+`slaunch/config/gametdb_ids.txt`, one `<title id>=<code>` per line. Titles with
+no entry are skipped without a request, and with no mappings at all GameTDB stays
+dormant, so nothing changes until you opt in.
+
+Covers are filed by language, with English split into UK, US and Australian
+editions; the console's own language decides the order. That and everything else
+about the paths lives in `slaunch/config/gametdb.txt`; see
+[docs/GAMETDB.md](docs/GAMETDB.md).
+
+A cover is fetched once. Drop your own `slaunch/covers/<title id>.jpg` in and
+nothing overwrites it; delete one you dislike and the next visit refetches it.
 
 ### Content filter
 
