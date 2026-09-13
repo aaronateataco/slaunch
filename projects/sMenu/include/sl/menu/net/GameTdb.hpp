@@ -28,7 +28,8 @@
 //   sdmc:/slaunch/config/gametdb_ids.txt
 //     0100152120B54000=AAB6B      # Title Name
 //
-// A title with no entry is skipped without a request. Guessing - asking for
+// which the menu can write for you: X on a game > GameTDB code. A title with no
+// entry is skipped without a request. Guessing - asking for
 // /0100152120B54000.jpg - would 404 on every title on the card, so the whole
 // source stays dormant until at least one mapping exists. That also means this
 // changes nothing at all for anyone who has not written that file.
@@ -86,14 +87,34 @@ namespace sl::menu::net::gametdb {
     // file is absent.
     const Settings &Cfg();
 
-    // Whether a fetch is worth attempting at all: enabled, configured with
+    // Whether a fetch is worth attempting at all: wanted, configured with
     // enough of a path to build a URL from, and holding at least one id mapping.
     bool Enabled();
 
-    // The GameTDB product code for a title, or "" when none is known.
-    const std::string &IdFor(u64 title_id);
+    // Just the user's own on/off choice, without the "and is it usable yet"
+    // part. This is what the Theming row shows: a console that is switched on
+    // but has no codes yet should read as on, not off.
+    bool Wanted();
 
-    // How many mappings config/gametdb_ids.txt yielded.
+    // Flip the switch and persist it. Only the `enabled=` line of
+    // config/gametdb.txt is rewritten, so the advanced keys - and any comments
+    // someone put in that file - survive being toggled from the menu.
+    void SetEnabled(bool on);
+
+    // The GameTDB product code for a title, or "" when none is known.
+    //
+    // By value, not by reference: the map behind this is written by the menu
+    // thread while the cover worker reads it, and a reference into it would
+    // dangle the moment an insert rehashed.
+    std::string IdFor(u64 title_id);
+
+    // Set (or, with an empty code, clear) the product code for one title and
+    // persist it to config/gametdb_ids.txt, leaving every other line alone.
+    // Lower case is folded up, since the codes are upper case and the on-screen
+    // keyboard starts lower.
+    void SetCodeFor(u64 title_id, const std::string &code);
+
+    // How many mappings config/gametdb_ids.txt holds.
     size_t IdCount();
 
     std::string CoverUrl(const std::string &game_id, const std::string &type,

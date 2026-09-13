@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <sys/stat.h>
 
 namespace sl::menu::net::gametdb {
 
@@ -199,10 +200,7 @@ namespace sl::menu::net::gametdb {
                 const u64 tid = (u64)strtoull(lhs.c_str(), &endp, 16);
                 if (tid == 0 || !endp || *endp != '\0') continue;
 
-                // The separator search stops at the first of several characters,
-                // so "0100...=  AAB6B" leaves leading spaces on rhs; Trim above
-                // has already taken them off. Anything still carrying a space is
-                // two fields, not one id.
+                // Anything still carrying a space is two fields, not one code.
                 if (rhs.find_first_of(" \t") != std::string::npos) continue;
 
                 m[tid] = rhs;
@@ -211,9 +209,75 @@ namespace sl::menu::net::gametdb {
             return m;
         }
 
-        const std::unordered_map<u64, std::string> &Ids() {
-            static const std::unordered_map<u64, std::string> m = LoadIds();
+        // The id map is read by the cover worker and written by the menu thread
+        // (X on a game > GameTDB code), so every touch of it goes behind this. A
+        // zero-initialised libnx Mutex is a valid unlocked one, which is why
+        // there is no init call here to forget.
+        Mutex g_ids_mx;
+
+        std::unordered_map<u64, std::string> &Ids() {
+            static std::unordered_map<u64, std::string> m = LoadIds();
             return m;
+        }
+
+        // Rewrite one config file, replacing the single line whose key matches -
+        // appending it when there is none, dropping it when `drop` - and leaving
+        // every other line, comments included, exactly as it was. Both config
+        // files are edited this way, because a toggle or a code typed in the menu
+        // must not throw away hand-written settings.
+        //
+        // With `numeric_key` the key is compared as a hex number, so a title id
+        // written in lower case, or with fewer leading zeros, still matches the
+        // line it should.
+        void RewriteLine(const char *path, const std::string &key,
+                         const std::string &replacement, bool drop,
+                         bool numeric_key) {
+            mkdir("sdmc:/slaunch", 0777);
+            mkdir("sdmc:/slaunch/config", 0777);
+
+            std::vector<std::string> lines;
+            bool found = false;
+
+            if (FILE *fp = fopen(path, "r")) {
+                char buf[512];
+                while (fgets(buf, sizeof(buf), fp)) {
+                    std::string l(buf);
+                    while (!l.empty() && (l[l.size() - 1] == '\n' ||
+                                          l[l.size() - 1] == '\r'))
+                        l.erase(l.size() - 1);
+
+                    const bool comment = !l.empty() && (l[0] == '#' || l[0] == ';');
+                    if (!comment) {
+                        const size_t sep = l.find_first_of("=: \t");
+                        if (sep != std::string::npos) {
+                            const std::string lhs = Trim(l.substr(0, sep));
+                            bool hit;
+                            if (numeric_key) {
+                                char *e = nullptr;
+                                const u64 a = (u64)strtoull(lhs.c_str(), &e, 16);
+                                hit = e && *e == '\0' &&
+                                      a == (u64)strtoull(key.c_str(), nullptr, 16);
+                            } else {
+                                hit = (lhs == key);
+                            }
+                            if (hit) {
+                                found = true;
+                                if (drop) continue;     // clearing: drop the line
+                                l = replacement;
+                            }
+                        }
+                    }
+                    lines.push_back(l);
+                }
+                fclose(fp);
+            }
+            if (!found && !drop) lines.push_back(replacement);
+
+            if (FILE *fp = fopen(path, "w")) {
+                for (size_t i = 0; i < lines.size(); i++)
+                    fprintf(fp, "%s\n", lines[i].c_str());
+                fclose(fp);
+            }
         }
 
         // Is this file actually an image?
@@ -246,27 +310,70 @@ namespace sl::menu::net::gametdb {
     const Settings &Cfg() {
         // Read once per boot. The fetch runs on a worker for whatever the cursor
         // rests on, and rereading here would mean an SD open per title to learn
-        // the same thing. Editing the file takes effect on the next launch.
+        // the same thing. Editing the file takes effect on the next launch; the
+        // one setting the menu itself can change, `enabled`, is held live below.
         static const Settings s = Load();
         return s;
     }
 
-    size_t IdCount() { return Ids().size(); }
+    namespace {
+        // The live on/off value, seeded from the config file exactly once. A
+        // function-local static, so that seeding is thread-safe: Enabled() runs
+        // on the cover worker and SetEnabled() on the menu thread.
+        bool &WantedRef() {
+            static bool w = Cfg().enabled;
+            return w;
+        }
+    }
 
-    const std::string &IdFor(u64 title_id) {
-        static const std::string none;
+    bool Wanted() { return WantedRef(); }
+
+    void SetEnabled(bool on) {
+        WantedRef() = on;
+        RewriteLine(kConfigPath, "enabled", on ? "enabled=1" : "enabled=0",
+                    false, false);
+    }
+
+    size_t IdCount() {
+        mutexLock(&g_ids_mx);
+        const size_t n = Ids().size();
+        mutexUnlock(&g_ids_mx);
+        return n;
+    }
+
+    std::string IdFor(u64 title_id) {
+        mutexLock(&g_ids_mx);
         const std::unordered_map<u64, std::string> &m = Ids();
         const std::unordered_map<u64, std::string>::const_iterator it = m.find(title_id);
-        return it == m.end() ? none : it->second;
+        const std::string code = (it == m.end()) ? std::string() : it->second;
+        mutexUnlock(&g_ids_mx);
+        return code;
+    }
+
+    void SetCodeFor(u64 title_id, const std::string &code) {
+        std::string c = Trim(code);
+        for (size_t i = 0; i < c.size(); i++)
+            if ('a' <= c[i] && c[i] <= 'z') c[i] = (char)(c[i] - ('a' - 'A'));
+
+        mutexLock(&g_ids_mx);
+        std::unordered_map<u64, std::string> &m = Ids();
+        if (c.empty()) m.erase(title_id);
+        else           m[title_id] = c;
+        mutexUnlock(&g_ids_mx);
+
+        // Keyed by the title id as 16 upper-case hex, the way the menu names
+        // every other per-title file.
+        char key[24];
+        snprintf(key, sizeof(key), "%016llX", (unsigned long long)title_id);
+        RewriteLine(kIdsPath, key, std::string(key) + "=" + c, c.empty(), true);
     }
 
     bool Enabled() {
         const Settings &s = Cfg();
         // No mappings means every title would be skipped anyway, so the source
         // reports itself off rather than being asked once per title. This is
-        // also what keeps the feature inert for anyone who has not opted in by
-        // writing the ids file.
-        return s.enabled && !s.base.empty() && !s.ext.empty() &&
+        // also what keeps the feature inert for anyone who has not opted in.
+        return Wanted() && !s.base.empty() && !s.ext.empty() &&
                !s.types.empty() && !s.regions.empty() && IdCount() > 0;
     }
 
@@ -280,7 +387,7 @@ namespace sl::menu::net::gametdb {
         Result r;
         if (!path || !Enabled()) return r;
 
-        const std::string &game_id = IdFor(title_id);
+        const std::string game_id = IdFor(title_id);
         if (game_id.empty()) {          // nothing to ask for
             r.no_id = true;
             return r;

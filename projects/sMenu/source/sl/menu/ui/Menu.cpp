@@ -2,6 +2,7 @@
 #include <unordered_set>
 #include <sl/menu/ui/Locale.hpp>
 #include <sl/menu/net/Http.hpp>
+#include <sl/menu/net/GameTdb.hpp>
 #include <sl/smi/Protocol.hpp>
 #include <SDL2/SDL_image.h>
 #include <cstdio>
@@ -1220,6 +1221,15 @@ namespace sl::menu::ui {
                                                          : T("Add to Favourites"), OptFav });
             m_options.push_back({ T("Rename"), OptRename });
             m_options.push_back({ T("Choose cover"), OptPickCover });
+            // The code GameTDB files this title's art under, shown inline so the
+            // row doubles as a way to check what is set.
+            {
+                const std::string code = net::gametdb::IdFor(it.app_id);
+                m_options.push_back({ code.empty()
+                                        ? std::string(T("GameTDB code"))
+                                        : std::string(T("GameTDB code")) + " (" + code + ")",
+                                      OptGameTdbId });
+            }
             m_options.push_back({ m_hb_donor == it.app_id ? T("Homebrew donor (set)")
                                                           : T("Use as homebrew donor"), OptSetDonor });
         }
@@ -1341,6 +1351,15 @@ namespace sl::menu::ui {
                 // shelf - the same rule every screen reached that way follows.
                 m_from_flow_menu = (m_screen != Screen::Main);
                 EnterCoverPicker();
+                return Action::None;
+            case OptGameTdbId:
+                m_options_open = false;
+                m_kb_purpose = sl::smi::Kb_GameTdbCode;
+                m_kb_app     = sel_id;
+                m_kb_text    = net::gametdb::IdFor(sel_id);
+                m_kb_row = m_kb_col = 0;
+                m_kb_upper = false;
+                m_screen = Screen::Keyboard;
                 return Action::None;
             case OptCloseGame:
                 m_options_open = false;

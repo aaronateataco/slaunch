@@ -28,7 +28,11 @@ menu the NACP and the icon, and there is no product number anywhere in the NACP;
 a digital-only title has no cartridge, so it has no code at all.
 
 So the code has to be looked up, and until the menu carries GameTDB's own
-database to look it up in, the mapping is a file you write:
+database to look it up in, you tell it: **X on a game > GameTDB code**, type the
+five characters, Done. The row shows the current code beside its label, and
+clearing it removes the mapping again.
+
+That writes the mapping to a file you can also edit directly:
 
 ```
 sdmc:/slaunch/config/gametdb_ids.txt
@@ -41,7 +45,17 @@ sdmc:/slaunch/config/gametdb_ids.txt
 
 `=`, `:`, or plain whitespace all separate; `#` and `;` start a comment. A line
 whose left side is not a 16-hex title id is dropped rather than quietly mapped,
-and so is one whose right side has a space in it.
+and so is one whose right side has a space in it. Lower case is folded up, since
+the codes are upper case and the on-screen keyboard starts lower.
+
+Typing a code from the menu rewrites only that title's line, so comments and any
+hand-written entries around it survive.
+
+Switching the whole source off is **Theming > GameTDB covers**, alongside the
+SteamGridDB key and shown in the same layouts. It reads `On, no codes` while it
+is on but has nothing mapped yet, because "On" with nothing to look up would read
+as broken. The toggle takes effect immediately and rewrites only the `enabled=`
+line of the config file below.
 
 **A title with no entry is skipped without a request.** Guessing - asking for
 `/0100152120B54000.jpg` - would 404 on every title on the card. With no mappings
@@ -127,8 +141,9 @@ in place instead of silently turning the feature off.
 `regions=auto` is the default written out - handy for reverting a list without
 deleting the line.
 
-Both files are read once when the menu starts, so an edit takes effect on the
-next launch.
+Both files are read once when the menu starts, so editing them by hand takes
+effect on the next launch. The two things the menu itself changes - the
+`enabled` toggle and a typed product code - apply straight away.
 
 ### Example: only high-resolution UK covers
 

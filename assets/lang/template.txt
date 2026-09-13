@@ -349,3 +349,10 @@ Toggle effect=Toggle effect
 Type=Type
 Use this=Use this
 Windowed=Windowed
+
+# --- GameTDB box art ---
+GameTDB covers=GameTDB covers
+GameTDB code=GameTDB code
+GameTDB code saved=GameTDB code saved
+GameTDB code cleared=GameTDB code cleared
+On, no codes=On, no codes

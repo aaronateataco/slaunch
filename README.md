@@ -183,10 +183,11 @@ worth a key.
 The catch is the product code: GameTDB files Switch art under the five characters
 printed on the cartridge (`HAC-P-AAB6B` -> `AAB6B`), and nothing in a title's
 NACP carries that, so it cannot be derived on the console. Until the menu can
-consult GameTDB's own database, the mapping is a file you write -
-`slaunch/config/gametdb_ids.txt`, one `<title id>=<code>` per line. Titles with
-no entry are skipped without a request, and with no mappings at all GameTDB stays
-dormant, so nothing changes until you opt in.
+consult GameTDB's own database you tell it the code - **X on a game > GameTDB
+code** - and it remembers it in `slaunch/config/gametdb_ids.txt`, which you can
+also write by hand. Titles with no entry are skipped without a request, and with
+no mappings at all GameTDB stays dormant, so nothing changes until you opt in.
+**Theming > GameTDB covers** switches the whole source off.
 
 Covers are filed by language, with English split into UK, US and Australian
 editions; the console's own language decides the order. That and everything else
