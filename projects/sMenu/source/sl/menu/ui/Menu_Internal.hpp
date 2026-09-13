@@ -27,7 +27,7 @@ namespace sl::menu::ui {
     // untappable.
     enum { TH_Themes = 0, TH_UiMode, TH_TextPos, TH_ListIcons,
            TH_IconPack, TH_Antialias, TH_ShelfVert, TH_TileCols, TH_TileRows,
-           TH_SgdbKey, TH_FlowSet, TH_Wrap,
+           TH_SgdbKey, TH_GameTdb, TH_FlowSet, TH_Wrap,
            TH_Hints, TH_Counter, TH_Fonts,
            TH_Language, TH_Music,
            TH_Widgets, TH_Entries,
@@ -454,7 +454,7 @@ namespace sl::menu::ui {
 
     // ---- X "Options" overlay ------------------------------------------------
     enum { OptFav = 0, OptRename, OptMove, OptUnpinHb, OptSetDonor,
-                       OptSort, OptCloseGame, OptPickCover, OptDismiss,
+                       OptSort, OptCloseGame, OptPickCover, OptGameTdbId, OptDismiss,
                        OptTileSize, OptTileColor, OptTileReset,
                        OptAddWidget, OptAddWidgetMenu, OptSubBack,
                        OptRemoveWidget }; 

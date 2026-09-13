@@ -3,6 +3,7 @@
 #include <sl/menu/ui/Locale.hpp>
 #include <sl/menu/net/Http.hpp>
 #include <sl/menu/net/ContentFilter.hpp>
+#include <sl/menu/net/GameTdb.hpp>
 #include <sl/smi/Protocol.hpp>
 #include <SDL2/SDL_image.h>
 #include <cstdio>
@@ -55,6 +56,18 @@ namespace sl::menu::ui {
                     m_screen = Screen::Theming;
                     break;
                 }
+                // A title's GameTDB product code, typed rather than hand-written
+                // into config/gametdb_ids.txt on a PC. Clearing it removes the
+                // line; the per-session "already tried" marker is dropped either
+                // way so the next visit to this title fetches again instead of
+                // remembering the old answer.
+                case sl::smi::Kb_GameTdbCode:
+                    net::gametdb::SetCodeFor(m_kb_app, m_kb_text);
+                    m_cover_tried.erase(m_kb_app);
+                    SetStatus(net::gametdb::IdFor(m_kb_app).empty()
+                              ? T("GameTDB code cleared") : T("GameTDB code saved"));
+                    m_screen = Screen::Main;
+                    break;
                 default: // Kb_RenameGame
                     SetCustomName(m_kb_app, m_kb_text.c_str());
                     RebuildItems();
@@ -975,6 +988,11 @@ namespace sl::menu::ui {
         auto toggleHints   = [&]() { m_show_hints   = !m_show_hints;   SaveSettings(); };
         auto toggleCounter = [&]() { m_show_counter = !m_show_counter; SaveSettings(); };
         auto toggleUpdates = [&]() { m_check_updates = !m_check_updates; SaveSettings(); };
+        // Persisted by GameTdb itself, into its own config file, so there is no
+        // SaveSettings() here - and it takes effect without a restart.
+        auto toggleGameTdb = [&]() {
+            net::gametdb::SetEnabled(!net::gametdb::Wanted());
+        };
         if (m_theming_cursor == TH_Updates && (b == Btn::Left || b == Btn::Right))
             toggleUpdates();
         auto toggleWelcome = [&]() { m_welcome_enabled = !m_welcome_enabled; SaveSettings(); };
@@ -1025,6 +1043,8 @@ namespace sl::menu::ui {
             toggleHints();
         if (m_theming_cursor == TH_Counter && (b == Btn::Left || b == Btn::Right))
             toggleCounter();
+        if (m_theming_cursor == TH_GameTdb && (b == Btn::Left || b == Btn::Right))
+            toggleGameTdb();
         if (m_theming_cursor == TH_Language && (b == Btn::Left || b == Btn::Right))
             cycleLanguage(b == Btn::Right ? +1 : -1);
         if (b == Btn::A) {
@@ -1043,6 +1063,7 @@ namespace sl::menu::ui {
                 case TH_Wrap:        toggleWrap(); break;
                 case TH_Hints:       toggleHints(); break;
                 case TH_Counter:     toggleCounter(); break;
+                case TH_GameTdb:     toggleGameTdb(); break;
                 case TH_FlowSet:
                     m_screen = Screen::FlowSettings;
                     m_flowset_cursor = 0;
@@ -1746,8 +1767,9 @@ namespace sl::menu::ui {
             // Both of these only mean anything to the coverflow.
             // The key row belongs to any layout that draws box art; the Flow
             // tuning screen only to Flow.
-            if (i == TH_SgdbKey && m_ui_mode != UiMode::Flow &&
-                                   m_ui_mode != UiMode::Deck) continue;
+            if ((i == TH_SgdbKey || i == TH_GameTdb) &&
+                m_ui_mode != UiMode::Flow &&
+                m_ui_mode != UiMode::Deck) continue;
             if (i == TH_FlowSet && m_ui_mode != UiMode::Flow) continue;
             if (i == TH_ShelfVert && m_ui_mode != UiMode::Shelf) continue;
             // The wall shape is only meaningful where there is a wall.
@@ -1783,7 +1805,7 @@ namespace sl::menu::ui {
             T("Themes"), T("UI mode"), T("Text position"), T("List icons"),
             T("Icon pack"), T("Anti-aliasing"), T("Vertical covers"),
             T("Columns"), T("Rows"),
-            T("SteamGridDB key"), T("Flow layout"),
+            T("SteamGridDB key"), T("GameTDB covers"), T("Flow layout"),
             T("Wrap around"), T("Button hints"), T("Position counter"),
             T("Fonts"), T("Language"),
             T("Music"), T("Widgets"),
@@ -1811,6 +1833,11 @@ namespace sl::menu::ui {
         values[TH_Hints]       = m_show_hints ? T("On") : T("Off");
         values[TH_Counter]     = m_show_counter ? T("On") : T("Off");
         values[TH_SgdbKey]     = SgdbKeyPresent() ? T("Set") : T("Not set");
+        // "On" with nothing to look up reads as broken, so say which it is: the
+        // switch does nothing until a title has a product code against it.
+        values[TH_GameTdb]     = !net::gametdb::Wanted() ? T("Off")
+                               : net::gametdb::IdCount() ? T("On")
+                                                         : T("On, no codes");
         values[TH_Language]    = kLangs[m_lang_idx].name
                                ? kLangs[m_lang_idx].name : T("Automatic");
         values[TH_Music]       = m_music.Enabled() ? T("On") : T("Off");
